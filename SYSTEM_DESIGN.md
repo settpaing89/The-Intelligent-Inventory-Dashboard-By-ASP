@@ -31,7 +31,7 @@ a manager's action) behaves like a real write, not a local-only illusion.
 
 ```mermaid
 flowchart LR
-    User["Dealership Manager<br/>(browser user)"] -->|views & filters inventory,<br/>logs actions| App
+    User["Dealership Manager<br/>(browser user)"] -->|"views &amp; filters inventory,<br/>logs actions"| App
 
     subgraph Frontend["React SPA (Vite + TypeScript + Tailwind)"]
         App["Dashboard UI<br/>Filter Panel / Vehicle Table / Action Modal"]
@@ -41,10 +41,10 @@ flowchart LR
         App --> Query
     end
 
-    Query -->|GET /vehicles| API["Mock REST API<br/>(json-server, port 3001)"]
-    Query -->|PATCH /vehicles/:id<br/>(status, proposed action)| API
-    API -->|reads / writes| DB[("db.json<br/>(file-based persistence)")]
-    API -->|JSON response| Query
+    Query -->|"GET /vehicles"| API["Mock REST API<br/>(json-server, port 3001)"]
+    Query -->|"PATCH /vehicles/:id<br/>(status, proposed action)"| API
+    API -->|"reads / writes"| DB[("db.json<br/>(file-based persistence)")]
+    API -->|"JSON response"| Query
 ```
 
 **Why this diagram is shaped this way:** one direction of flow (left to right),
