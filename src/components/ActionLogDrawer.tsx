@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ACTION_STATUS_OPTIONS,
   type ActionStatus,
   type Vehicle,
 } from '../types/vehicle'
 import { useUpdateVehicleAction } from '../hooks/useVehicles'
+import { logger } from '../lib/logger'
 
 interface ActionLogDrawerProps {
   vehicle: Vehicle | null
@@ -37,12 +38,31 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
   )
   const [noteText, setNoteText] = useState(vehicle.actionNote ?? '')
   const { mutate, isPending, isError, error } = useUpdateVehicleAction()
+  const statusSelectRef = useRef<HTMLSelectElement>(null)
+
+  useEffect(() => {
+    statusSelectRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (selectedStatus === '') {
       return
     }
+    logger.info('action_update_attempt', {
+      vehicleId: vehicle.id,
+      actionStatus: selectedStatus,
+    })
     mutate(
       {
         id: vehicle.id,
@@ -60,7 +80,7 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col overflow-y-auto bg-white p-6 shadow-xl transition-transform duration-300 ease-out">
+      <div className="absolute right-0 top-0 flex h-full w-full flex-col overflow-y-auto bg-white p-6 shadow-xl transition-transform duration-300 ease-out sm:max-w-md">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold">
@@ -82,6 +102,7 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
           <label className="flex flex-col text-sm">
             Status
             <select
+              ref={statusSelectRef}
               required
               value={selectedStatus}
               disabled={isPending}

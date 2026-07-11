@@ -5,6 +5,10 @@ import {
   getDaysInInventory,
   type AgingSeverity,
 } from '../lib/inventoryLogic'
+import {
+  SEVERITY_BADGE_CLASS,
+  SEVERITY_ROW_TINT_CLASS,
+} from '../lib/severityColors'
 
 interface VehicleTableProps {
   vehicles: Vehicle[]
@@ -20,28 +24,18 @@ function formatIntakeDate(intakeDate: string): string {
   })
 }
 
-const ROW_TINT_CLASS: Record<AgingSeverity, string> = {
-  none: '',
-  aging: 'bg-amber-50',
-  critical: 'bg-red-100',
-}
-
 function AgingBadge({ severity }: { severity: AgingSeverity }) {
-  if (severity === 'critical') {
-    return (
-      <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
-        Critical
-      </span>
-    )
+  if (severity === 'none') {
+    return null
   }
-  if (severity === 'aging') {
-    return (
-      <span className="rounded bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">
-        Aging
-      </span>
-    )
-  }
-  return null
+  const label = severity === 'critical' ? 'Critical' : 'Aging'
+  return (
+    <span
+      className={`rounded px-2 py-0.5 text-xs font-semibold text-white ${SEVERITY_BADGE_CLASS[severity]}`}
+    >
+      {label}
+    </span>
+  )
 }
 
 function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
@@ -64,82 +58,97 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
   }
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Make</th>
-          <th>Model</th>
-          <th>Year</th>
-          <th>Trim</th>
-          <th>Days in Inventory</th>
-          <th>Price</th>
-          <th>Status</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {vehicles.map((vehicle) => {
-          const isExpanded = expandedIds.has(vehicle.id)
-          const days = getDaysInInventory(vehicle.intakeDate)
-          const severity = getAgingSeverity(days)
-          return (
-            <Fragment key={vehicle.id}>
-              <tr
-                onClick={() => toggleExpanded(vehicle.id)}
-                className={ROW_TINT_CLASS[severity]}
-                style={{ cursor: 'pointer' }}
-              >
-                <td>{vehicle.make}</td>
-                <td>{vehicle.model}</td>
-                <td>{vehicle.year}</td>
-                <td>{vehicle.trim}</td>
-                <td>{days}</td>
-                <td>{vehicle.price}</td>
-                <td>
-                  <AgingBadge severity={severity} />
-                </td>
-                <td onClick={(event) => event.stopPropagation()}>
-                  {severity === 'none' ? (
-                    '—'
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {vehicle.actionStatus ? (
-                        <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">
-                          {vehicle.actionStatus}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500">
-                          Not yet reviewed
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onLogAction(vehicle)}
-                        className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                      >
-                        {vehicle.actionStatus ? 'Update Action' : 'Log Action'}
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-              {isExpanded && (
-                <tr className={ROW_TINT_CLASS[severity]}>
-                  <td colSpan={8}>
-                    <div>VIN: {vehicle.vin}</div>
-                    <div>Color: {vehicle.color}</div>
-                    <div>Mileage: {vehicle.mileage}</div>
-                    <div>
-                      Intake Date: {formatIntakeDate(vehicle.intakeDate)}
-                    </div>
+    <div className="overflow-x-auto">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Make</th>
+            <th scope="col">Model</th>
+            <th scope="col">Year</th>
+            <th scope="col">Trim</th>
+            <th scope="col">Days in Inventory</th>
+            <th scope="col">Price</th>
+            <th scope="col">Status</th>
+            <th scope="col">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vehicles.map((vehicle) => {
+            const isExpanded = expandedIds.has(vehicle.id)
+            const days = getDaysInInventory(vehicle.intakeDate)
+            const severity = getAgingSeverity(days)
+            const detailRowId = `vehicle-details-${vehicle.id}`
+            return (
+              <Fragment key={vehicle.id}>
+                <tr className={SEVERITY_ROW_TINT_CLASS[severity]}>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(vehicle.id)}
+                      aria-expanded={isExpanded}
+                      aria-controls={detailRowId}
+                      className="flex items-center gap-1 text-left"
+                    >
+                      <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                      {vehicle.make}
+                    </button>
+                  </td>
+                  <td>{vehicle.model}</td>
+                  <td>{vehicle.year}</td>
+                  <td>{vehicle.trim}</td>
+                  <td>{days}</td>
+                  <td>{vehicle.price}</td>
+                  <td>
+                    <AgingBadge severity={severity} />
+                  </td>
+                  <td>
+                    {severity === 'none' ? (
+                      '—'
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {vehicle.actionStatus ? (
+                          <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">
+                            {vehicle.actionStatus}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-500">
+                            Not yet reviewed
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onLogAction(vehicle)}
+                          className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                        >
+                          {vehicle.actionStatus
+                            ? 'Update Action'
+                            : 'Log Action'}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
-              )}
-            </Fragment>
-          )
-        })}
-      </tbody>
-    </table>
+                {isExpanded && (
+                  <tr
+                    id={detailRowId}
+                    className={SEVERITY_ROW_TINT_CLASS[severity]}
+                  >
+                    <td colSpan={8}>
+                      <div>VIN: {vehicle.vin}</div>
+                      <div>Color: {vehicle.color}</div>
+                      <div>Mileage: {vehicle.mileage}</div>
+                      <div>
+                        Intake Date: {formatIntakeDate(vehicle.intakeDate)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

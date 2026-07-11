@@ -1,30 +1,30 @@
 import type { VehicleFilters } from '../lib/inventoryLogic'
 
+const MAX_DAYS_SLIDER_LIMIT = 200
+
 interface FilterPanelProps {
   makes: string[]
   models: string[]
+  years: number[]
   filters: VehicleFilters
   onChange: (filters: VehicleFilters) => void
   onReset: () => void
 }
 
-function parseOptionalNumber(rawValue: string): number | undefined {
-  if (rawValue.trim() === '') {
-    return undefined
-  }
-  const parsed = Number(rawValue)
-  return Number.isNaN(parsed) ? undefined : parsed
-}
-
 function FilterPanel({
   makes,
   models,
+  years,
   filters,
   onChange,
   onReset,
 }: FilterPanelProps) {
   const sortedMakes = [...makes].sort((a, b) => a.localeCompare(b))
   const sortedModels = [...models].sort((a, b) => a.localeCompare(b))
+  const sortedYears = [...years].sort((a, b) => a - b)
+
+  const minDaysValue = filters.minDays ?? 0
+  const maxDaysValue = filters.maxDays ?? MAX_DAYS_SLIDER_LIMIT
 
   return (
     <div className="flex flex-wrap items-end gap-4">
@@ -69,32 +69,83 @@ function FilterPanel({
       </label>
 
       <label className="flex flex-col text-sm">
-        Min days in inventory
-        <input
-          type="number"
-          value={filters.minDays ?? ''}
+        Year
+        <select
+          value={filters.year !== undefined ? String(filters.year) : ''}
           onChange={(event) =>
             onChange({
               ...filters,
-              minDays: parseOptionalNumber(event.target.value),
+              year:
+                event.target.value === ''
+                  ? undefined
+                  : Number(event.target.value),
+            })
+          }
+        >
+          <option value="">All</option>
+          {sortedYears.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col text-sm">
+        VIN
+        <input
+          type="text"
+          value={filters.vin ?? ''}
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              vin: event.target.value === '' ? undefined : event.target.value,
             })
           }
         />
       </label>
 
-      <label className="flex flex-col text-sm">
-        Max days in inventory
-        <input
-          type="number"
-          value={filters.maxDays ?? ''}
-          onChange={(event) =>
-            onChange({
-              ...filters,
-              maxDays: parseOptionalNumber(event.target.value),
-            })
-          }
-        />
-      </label>
+      <div className="flex flex-col text-sm">
+        <span>
+          Days in Inventory: {minDaysValue}–
+          {filters.maxDays === undefined
+            ? `${MAX_DAYS_SLIDER_LIMIT}+`
+            : maxDaysValue}
+        </span>
+        <div className="relative h-6 w-48">
+          <input
+            type="range"
+            min={0}
+            max={MAX_DAYS_SLIDER_LIMIT}
+            value={minDaysValue}
+            onChange={(event) => {
+              const rawMin = Number(event.target.value)
+              const clampedMin = Math.min(rawMin, maxDaysValue)
+              onChange({
+                ...filters,
+                minDays: clampedMin === 0 ? undefined : clampedMin,
+              })
+            }}
+            className="pointer-events-none absolute w-full [&::-moz-range-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:pointer-events-auto"
+          />
+          <input
+            type="range"
+            min={0}
+            max={MAX_DAYS_SLIDER_LIMIT}
+            value={maxDaysValue}
+            onChange={(event) => {
+              const rawMax = Number(event.target.value)
+              const clampedMax = Math.max(rawMax, minDaysValue)
+              onChange({
+                ...filters,
+                maxDays:
+                  clampedMax >= MAX_DAYS_SLIDER_LIMIT ? undefined : clampedMax,
+              })
+            }}
+            className="pointer-events-none absolute w-full [&::-moz-range-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:pointer-events-auto"
+          />
+        </div>
+      </div>
 
       <button type="button" onClick={onReset}>
         Reset filters

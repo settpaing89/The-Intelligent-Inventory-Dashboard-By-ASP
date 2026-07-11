@@ -45,6 +45,8 @@ export interface VehicleFilters {
   model?: string
   minDays?: number
   maxDays?: number
+  year?: number
+  vin?: string
 }
 
 export function filterVehicles(
@@ -62,6 +64,15 @@ export function filterVehicles(
     if (
       filters.model &&
       vehicle.model.toLowerCase() !== filters.model.toLowerCase()
+    ) {
+      return false
+    }
+    if (filters.year !== undefined && vehicle.year !== filters.year) {
+      return false
+    }
+    if (
+      filters.vin &&
+      !vehicle.vin.toLowerCase().includes(filters.vin.toLowerCase())
     ) {
       return false
     }
@@ -85,4 +96,22 @@ export function getAgingVehicles(
   return vehicles.filter((vehicle) =>
     isAgingStock(getDaysInInventory(vehicle.intakeDate, asOfDate)),
   )
+}
+
+export function getAverageDaysInInventory(
+  vehicles: Vehicle[],
+  asOfDate: Date = new Date(),
+): number {
+  if (vehicles.length === 0) {
+    return 0
+  }
+  const total = vehicles.reduce(
+    (sum, vehicle) => sum + getDaysInInventory(vehicle.intakeDate, asOfDate),
+    0,
+  )
+  return total / vehicles.length
+}
+
+export function getTotalInventoryValue(vehicles: Vehicle[]): number {
+  return vehicles.reduce((sum, vehicle) => sum + vehicle.price, 0)
 }

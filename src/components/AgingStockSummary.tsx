@@ -46,7 +46,7 @@ function AgingStockSummary({ vehicles, onViewAging }: AgingStockSummaryProps) {
       <button
         type="button"
         onClick={onViewAging}
-        className="mt-3 rounded bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
+        className="mt-3 rounded bg-amber-700 px-4 py-2 font-medium text-white hover:bg-amber-800"
       >
         View aging stock
       </button>

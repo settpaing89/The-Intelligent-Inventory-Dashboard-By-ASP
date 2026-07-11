@@ -4,7 +4,9 @@ import {
   filterVehicles,
   getAgingSeverity,
   getAgingVehicles,
+  getAverageDaysInInventory,
   getDaysInInventory,
+  getTotalInventoryValue,
   isAgingStock,
 } from './inventoryLogic'
 import type { Vehicle } from '../types/vehicle'
@@ -42,36 +44,42 @@ const fixture: Vehicle[] = [
     id: 1,
     make: 'Toyota',
     model: 'Camry',
+    year: 2024,
     intakeDate: '2026-05-26',
   }),
   makeVehicle({
     id: 2,
     make: 'Toyota',
     model: 'Corolla',
+    year: 2023,
     intakeDate: '2026-04-11',
   }),
   makeVehicle({
     id: 3,
     make: 'Honda',
     model: 'Civic',
+    year: 2024,
     intakeDate: '2026-04-10',
   }),
   makeVehicle({
     id: 4,
     make: 'Toyota',
     model: 'Camry',
+    year: 2022,
     intakeDate: '2026-01-15',
   }),
   makeVehicle({
     id: 5,
     make: 'Ford',
     model: 'F-150',
+    year: 2024,
     intakeDate: '2025-12-11',
   }),
   makeVehicle({
     id: 6,
     make: 'Honda',
     model: 'Civic',
+    year: 2021,
     intakeDate: '2026-08-01',
   }),
 ]
@@ -213,6 +221,41 @@ describe('filterVehicles', () => {
     filterVehicles(fixture, { make: 'Toyota', minDays: 0 }, ASOF)
     expect(fixture).toEqual(original)
   })
+
+  it('filters by year, exact match', () => {
+    const result = filterVehicles(fixture, { year: 2024 }, ASOF)
+    expect(result.map((v) => v.id)).toEqual([1, 3, 5])
+  })
+
+  it('filters by year combined with make', () => {
+    const result = filterVehicles(fixture, { year: 2024, make: 'Toyota' }, ASOF)
+    expect(result.map((v) => v.id)).toEqual([1])
+  })
+
+  it('treats an undefined year the same as no filter', () => {
+    const result = filterVehicles(fixture, { year: undefined }, ASOF)
+    expect(result).toEqual(fixture)
+  })
+
+  it('filters by vin, case-insensitive substring match', () => {
+    const result = filterVehicles(fixture, { vin: 'vin3' }, ASOF)
+    expect(result.map((v) => v.id)).toEqual([3])
+  })
+
+  it('treats an empty-string vin the same as no filter', () => {
+    const result = filterVehicles(fixture, { vin: '' }, ASOF)
+    expect(result).toEqual(fixture)
+  })
+
+  it('treats an undefined vin the same as no filter', () => {
+    const result = filterVehicles(fixture, { vin: undefined }, ASOF)
+    expect(result).toEqual(fixture)
+  })
+
+  it('returns an empty array when the vin filter matches nothing', () => {
+    const result = filterVehicles(fixture, { vin: 'ZZZ-NO-MATCH' }, ASOF)
+    expect(result).toEqual([])
+  })
 })
 
 describe('getAgingVehicles', () => {
@@ -230,5 +273,39 @@ describe('getAgingVehicles', () => {
     const original = fixture.map((v) => ({ ...v }))
     getAgingVehicles(fixture, ASOF)
     expect(fixture).toEqual(original)
+  })
+})
+
+describe('getAverageDaysInInventory', () => {
+  it('returns 0 for an empty array', () => {
+    expect(getAverageDaysInInventory([], ASOF)).toBe(0)
+  })
+
+  it("returns that vehicle's day count for a single vehicle", () => {
+    const single = [makeVehicle({ id: 1, intakeDate: '2026-05-26' })] // 45 days
+    expect(getAverageDaysInInventory(single, ASOF)).toBe(45)
+  })
+
+  it('returns the arithmetic mean across multiple vehicles', () => {
+    const vehicles = [
+      makeVehicle({ id: 1, intakeDate: '2026-05-26' }), // 45 days
+      makeVehicle({ id: 2, intakeDate: '2026-04-11' }), // 90 days
+    ]
+    expect(getAverageDaysInInventory(vehicles, ASOF)).toBe(67.5)
+  })
+})
+
+describe('getTotalInventoryValue', () => {
+  it('returns 0 for an empty array', () => {
+    expect(getTotalInventoryValue([])).toBe(0)
+  })
+
+  it('returns the sum of price across multiple vehicles', () => {
+    const vehicles = [
+      makeVehicle({ id: 1, price: 10000 }),
+      makeVehicle({ id: 2, price: 20000 }),
+      makeVehicle({ id: 3, price: 30000 }),
+    ]
+    expect(getTotalInventoryValue(vehicles)).toBe(60000)
   })
 })
