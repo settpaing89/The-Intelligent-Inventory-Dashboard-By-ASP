@@ -10,7 +10,11 @@ export async function getVehicles(): Promise<Vehicle[]> {
       `Failed to fetch vehicles: ${response.status} ${response.statusText}`,
     )
   }
-  return response.json()
+  const data: Vehicle[] = await response.json()
+  // json-server serves `id` as a string even when db.json stores it as a
+  // number, silently violating the Vehicle type's `id: number` contract.
+  // Coerce here so every other caller can trust the type as declared.
+  return data.map((vehicle) => ({ ...vehicle, id: Number(vehicle.id) }))
 }
 
 export async function updateVehicleAction(
@@ -33,5 +37,6 @@ export async function updateVehicleAction(
       `Failed to update vehicle ${id}: ${response.status} ${response.statusText}`,
     )
   }
-  return response.json()
+  const updated: Vehicle = await response.json()
+  return { ...updated, id: Number(updated.id) }
 }
