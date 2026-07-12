@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ACTION_STATUS_OPTIONS,
   type ActionStatus,
@@ -6,6 +7,9 @@ import {
 } from '../types/vehicle'
 import { useUpdateVehicleAction } from '../hooks/useVehicles'
 import { logger } from '../lib/logger'
+
+const INPUT_CLASS =
+  'rounded border border-input-border bg-white px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/10'
 
 interface ActionLogDrawerProps {
   vehicle: Vehicle | null
@@ -73,33 +77,33 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
     )
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50">
       <div
         className="absolute inset-0 bg-black/40"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="absolute right-0 top-0 flex h-full w-full flex-col overflow-y-auto bg-white p-6 shadow-xl transition-transform duration-300 ease-out sm:max-w-md">
+      <div className="absolute right-0 top-0 flex h-full w-full flex-col overflow-y-auto bg-white p-lg shadow-elevation-high transition-transform duration-300 ease-out sm:w-[28rem]">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-xl font-semibold text-on-surface">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </h2>
-            <p className="text-sm text-gray-500">{vehicle.trim}</p>
+            <p className="text-sm text-on-surface-variant">{vehicle.trim}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-xl leading-none text-gray-500 hover:text-gray-800"
+            className="text-xl leading-none text-on-surface-variant hover:text-on-surface"
           >
             &times;
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-          <label className="flex flex-col text-sm">
+          <label className="flex flex-col text-sm text-on-surface-variant">
             Status
             <select
               ref={statusSelectRef}
@@ -109,6 +113,7 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
               onChange={(event) =>
                 setSelectedStatus(event.target.value as ActionStatus | '')
               }
+              className={INPUT_CLASS}
             >
               <option value="" disabled>
                 Select a status
@@ -121,7 +126,7 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
             </select>
           </label>
 
-          <label className="flex flex-col text-sm">
+          <label className="flex flex-col text-sm text-on-surface-variant">
             Note (optional)
             <textarea
               value={noteText}
@@ -129,11 +134,12 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
               disabled={isPending}
               onChange={(event) => setNoteText(event.target.value)}
               rows={4}
+              className={INPUT_CLASS}
             />
           </label>
 
           {isError && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-error">
               {error instanceof Error ? error.message : 'Failed to save.'}
             </p>
           )}
@@ -141,13 +147,14 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
           <button
             type="submit"
             disabled={selectedStatus === '' || isPending}
-            className="mt-2 rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-2 rounded bg-primary-container px-4 py-2 text-sm font-semibold text-white hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? 'Saving...' : 'Save'}
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

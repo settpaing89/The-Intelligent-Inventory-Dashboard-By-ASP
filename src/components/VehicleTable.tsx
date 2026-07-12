@@ -1,14 +1,7 @@
 import { Fragment, useState } from 'react'
 import type { Vehicle } from '../types/vehicle'
-import {
-  getAgingSeverity,
-  getDaysInInventory,
-  type AgingSeverity,
-} from '../lib/inventoryLogic'
-import {
-  SEVERITY_BADGE_CLASS,
-  SEVERITY_ROW_TINT_CLASS,
-} from '../lib/severityColors'
+import { getAgingSeverity, getDaysInInventory } from '../lib/inventoryLogic'
+import { SEVERITY_STYLES } from '../lib/severityStyles'
 
 interface VehicleTableProps {
   vehicles: Vehicle[]
@@ -22,20 +15,6 @@ function formatIntakeDate(intakeDate: string): string {
     month: 'long',
     day: 'numeric',
   })
-}
-
-function AgingBadge({ severity }: { severity: AgingSeverity }) {
-  if (severity === 'none') {
-    return null
-  }
-  const label = severity === 'critical' ? 'Critical' : 'Aging'
-  return (
-    <span
-      className={`rounded px-2 py-0.5 text-xs font-semibold text-white ${SEVERITY_BADGE_CLASS[severity]}`}
-    >
-      {label}
-    </span>
-  )
 }
 
 function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
@@ -54,22 +33,64 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
   }
 
   if (vehicles.length === 0) {
-    return <p>No vehicles match your filters</p>
+    return (
+      <p className="text-on-surface-variant">No vehicles match your filters</p>
+    )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table>
+    <div className="overflow-x-auto rounded-md border border-card-border">
+      <table className="w-full border-collapse text-left">
         <thead>
-          <tr>
-            <th scope="col">Make</th>
-            <th scope="col">Model</th>
-            <th scope="col">Year</th>
-            <th scope="col">Trim</th>
-            <th scope="col">Days in Inventory</th>
-            <th scope="col">Price</th>
-            <th scope="col">Status</th>
-            <th scope="col">Action</th>
+          <tr className="bg-table-header">
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Make
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Model
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Year
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Trim
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Days in Inventory
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Price
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Status
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+            >
+              Action
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -77,48 +98,78 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
             const isExpanded = expandedIds.has(vehicle.id)
             const days = getDaysInInventory(vehicle.intakeDate)
             const severity = getAgingSeverity(days)
+            const style = SEVERITY_STYLES[severity]
             const detailRowId = `vehicle-details-${vehicle.id}`
             return (
               <Fragment key={vehicle.id}>
-                <tr className={SEVERITY_ROW_TINT_CLASS[severity]}>
-                  <td>
+                <tr className="border-b border-card-border hover:bg-table-hover">
+                  <td className="px-4 py-3">
                     <button
                       type="button"
                       onClick={() => toggleExpanded(vehicle.id)}
                       aria-expanded={isExpanded}
                       aria-controls={detailRowId}
-                      className="flex items-center gap-1 text-left"
+                      className="flex items-center gap-1 text-left text-sm text-on-surface"
                     >
-                      <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 items-center justify-center"
+                      >
+                        <svg
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className={`h-5 w-5 transition-transform duration-150 ${
+                            isExpanded ? 'rotate-90' : ''
+                          }`}
+                        >
+                          <path d="M7 5l6 5-6 5" />
+                        </svg>
+                      </span>
                       {vehicle.make}
                     </button>
                   </td>
-                  <td>{vehicle.model}</td>
-                  <td>{vehicle.year}</td>
-                  <td>{vehicle.trim}</td>
-                  <td>{days}</td>
-                  <td>{vehicle.price}</td>
-                  <td>
-                    <AgingBadge severity={severity} />
+                  <td className="px-4 py-3 text-sm text-on-surface">
+                    {vehicle.model}
                   </td>
-                  <td>
+                  <td className="px-4 py-3 text-sm text-on-surface">
+                    {vehicle.year}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-on-surface">
+                    {vehicle.trim}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-on-surface">{days}</td>
+                  <td className="px-4 py-3 text-sm text-on-surface">
+                    {vehicle.price}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-badge px-2 py-0.5 text-[11px] font-medium ${style.badgeBgClass} ${style.badgeTextClass}`}
+                    >
+                      {style.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
                     {severity === 'none' ? (
-                      '—'
+                      <span className="text-sm text-on-surface-variant">—</span>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-[minmax(140px,1fr)_auto] items-center gap-2">
                         {vehicle.actionStatus ? (
-                          <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800">
+                          <span className="rounded bg-surface-container px-2 py-0.5 text-xs font-medium text-on-surface">
                             {vehicle.actionStatus}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-on-surface-variant">
                             Not yet reviewed
                           </span>
                         )}
                         <button
                           type="button"
                           onClick={() => onLogAction(vehicle)}
-                          className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                          className="rounded bg-primary-container px-2 py-1 text-xs font-semibold text-white hover:bg-primary"
                         >
                           {vehicle.actionStatus
                             ? 'Update Action'
@@ -131,9 +182,12 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
                 {isExpanded && (
                   <tr
                     id={detailRowId}
-                    className={SEVERITY_ROW_TINT_CLASS[severity]}
+                    className="border-b border-card-border bg-table-header"
                   >
-                    <td colSpan={8}>
+                    <td
+                      colSpan={8}
+                      className="px-4 py-3 text-sm text-on-surface-variant"
+                    >
                       <div>VIN: {vehicle.vin}</div>
                       <div>Color: {vehicle.color}</div>
                       <div>Mileage: {vehicle.mileage}</div>

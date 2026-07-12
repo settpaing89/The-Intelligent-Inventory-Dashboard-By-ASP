@@ -17,21 +17,23 @@ import {
   getDaysInInventory,
   type AgingSeverity,
 } from '../lib/inventoryLogic'
-import { SEVERITY_CHART_COLOR, SEVERITY_LABEL } from '../lib/severityColors'
+import { SEVERITY_STYLES } from '../lib/severityStyles'
 
 interface InventoryInsightsProps {
   vehicles: Vehicle[]
 }
 
 const SEVERITY_ORDER: AgingSeverity[] = ['none', 'aging', 'critical']
-const MAKE_BAR_COLOR = '#2563eb' // blue-600
+const MAKE_BAR_COLOR = '#1e3a5f' // primary-container, matches the Primary button color
 
 function InventoryInsights({ vehicles }: InventoryInsightsProps) {
   if (vehicles.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <h2 className="text-lg font-semibold">Inventory Insights</h2>
-        <p className="mt-2 text-gray-600">
+      <div className="rounded-md border border-card-border bg-white p-lg shadow-elevation-low">
+        <h2 className="text-xl font-semibold text-on-surface">
+          Inventory Insights
+        </h2>
+        <p className="mt-2 text-on-surface-variant">
           No vehicles in inventory to chart yet.
         </p>
       </div>
@@ -49,14 +51,14 @@ function InventoryInsights({ vehicles }: InventoryInsightsProps) {
   }
   const severityData = SEVERITY_ORDER.map((severity) => ({
     severity,
-    name: SEVERITY_LABEL[severity],
+    name: SEVERITY_STYLES[severity].label,
     value: severityCounts[severity],
-    color: SEVERITY_CHART_COLOR[severity],
+    color: SEVERITY_STYLES[severity].chartColor,
   })).filter((entry) => entry.value > 0)
 
   const severitySummaryText = SEVERITY_ORDER.map(
     (severity) =>
-      `${severityCounts[severity]} ${SEVERITY_LABEL[severity].toLowerCase()}`,
+      `${severityCounts[severity]} ${SEVERITY_STYLES[severity].label.toLowerCase()}`,
   ).join(', ')
 
   const makeCounts = new Map<string, number>()
@@ -72,18 +74,20 @@ function InventoryInsights({ vehicles }: InventoryInsightsProps) {
     .join(', ')
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="text-lg font-semibold">Inventory Insights</h2>
-      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700">
+    <div className="rounded-md border border-card-border bg-white p-lg shadow-elevation-low">
+      <h2 className="pb-lg text-xl font-semibold text-on-surface">
+        Inventory Insights
+      </h2>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
             Aging Severity Breakdown
           </h3>
           <p className="sr-only">
             Aging severity breakdown for {vehicles.length} vehicles total:{' '}
             {severitySummaryText}.
           </p>
-          <div aria-hidden="true" className="h-64">
+          <div aria-hidden="true" className="h-64 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -105,25 +109,19 @@ function InventoryInsights({ vehicles }: InventoryInsightsProps) {
           </div>
         </div>
 
-        <div>
-          <h3 className="text-sm font-medium text-gray-700">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
             Vehicles by Make
           </h3>
           <p className="sr-only">
             Vehicle count by make, highest first: {makeSummaryText}.
           </p>
-          <div aria-hidden="true" className="h-64">
+          <div aria-hidden="true" className="h-64 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={makeData}>
+              <BarChart data={makeData} layout="vertical" margin={{ left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="make"
-                  interval={0}
-                  angle={-30}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis allowDecimals={false} />
+                <XAxis type="number" allowDecimals={false} />
+                <YAxis type="category" dataKey="make" width={100} />
                 <Tooltip />
                 <Bar dataKey="count" fill={MAKE_BAR_COLOR} />
               </BarChart>

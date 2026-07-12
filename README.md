@@ -35,6 +35,66 @@ You can also run them separately with `npm run dev` (frontend only) and `npm run
 ## AI Collaboration Narrative
 
 *(Living section — updated as each build stage completes. Current coverage: Stages 1-2.)*
+### A Debugging Case Study: The 16px Drawer
+
+After the visual reskin, `ActionLogDrawer` began rendering at roughly 100-120px
+wide on every viewport — not just small screens — cutting off all its content.
+This one took three specific, falsifiable hypotheses before landing on the real
+cause, and it's worth documenting precisely *because* most of them were wrong.
+
+**Hypothesis 1: a CSS containing-block issue.** The standard explanation for a
+`position: fixed` element sizing against the wrong box is an ancestor with a
+`transform`, `filter`, or similar property creating a new containing block. I
+had the AI search the entire codebase for every property known to cause this.
+None were found on any ancestor — the only matches were on unrelated sibling
+components. Hypothesis eliminated with an actual search, not assumption.
+
+**Hypothesis 2: a Tailwind config collision on `maxWidth`.** Since a custom
+design-token extension had just been added to `tailwind.config.js`, the next
+theory was that it had accidentally overwritten Tailwind's `maxWidth` scale.
+Reviewing the actual config file showed no `maxWidth` key was touched at all.
+Hypothesis eliminated.
+
+**Hypothesis 3: a stale browser cache.** Ruled out directly via hard refresh
+and an incognito window — the bug persisted regardless.
+
+**Applying a fix before having full certainty.** At that point, rather than
+keep guessing, I had the AI apply a change that would work regardless of the
+underlying cause: swapping the named `sm:max-w-md` utility for an explicit
+arbitrary value, `sm:w-[28rem]` — arbitrary values bypass Tailwind's
+theme-scale lookup entirely, so they can't collide with anything. This fixed
+the visible bug immediately, confirmed via the browser's Computed panel
+showing exactly `448px` (28rem) rather than just eyeballing the screen.
+
+**Confirming the actual root cause afterward.** A working fix without a
+diagnosis felt incomplete, so I asked for one more test: temporarily strip the
+custom spacing-token block from the config, revert to the named `max-w-md`
+class, and see if it now resolved correctly on its own. It did. The compiled
+CSS proved it directly — with the custom tokens present:
+`.sm\:max-w-md { max-width: 16px }`; with them removed:
+`.sm\:max-w-md { max-width: var(--container-md) }` (28rem, correct).
+
+**Root cause:** the design system's spacing tokens were deliberately named
+`sm`/`md`/`lg`/`xl` to match `DESIGN.md`'s own naming. Tailwind's independent
+`maxWidth`/container scale uses those exact same key names by default
+(`24rem`/`28rem`/`32rem`/`36rem`). Under this project's Tailwind v4 +
+`@config` (legacy JS-config compatibility) setup, the two scales resolved
+through a shared key namespace, and the custom spacing values silently won —
+so `max-w-md` quietly became `16px` instead of `28rem`, with no warning
+anywhere in the build.
+
+**Why this is worth including:** three specific hypotheses were tested and
+eliminated with real evidence — a codebase search, a config review, a cache
+check — before the actual cause was found. Just as importantly, a working fix
+was shipped and verified via computed styles *before* the root cause was fully
+confirmed, rather than leaving a visibly broken component in place while the
+investigation continued. It also surfaced a systemic risk beyond this one
+component: any future utility class anywhere in this codebase using a scale
+name that collides with the design tokens (`sm`, `md`, `lg`, `xl`, `xs`,
+`base`, `gutter`, `margin`) would silently resolve to the wrong value with no
+build error — flagged in the System Design Document as a known constraint for
+anyone extending the styling later.
+
 ### A Debugging Case Study: The Vanishing Filter
 
 After Stage 6 (action logging), I found a bug during my own manual verification, not

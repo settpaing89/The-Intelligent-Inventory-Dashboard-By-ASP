@@ -16,16 +16,17 @@ import VehicleTable from './components/VehicleTable'
 
 function DashboardSkeleton() {
   return (
-    <div aria-hidden="true" className="space-y-4">
-      <div className="h-20 animate-pulse rounded-lg bg-gray-200" />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="h-40 animate-pulse rounded-lg bg-gray-200" />
-        <div className="h-40 animate-pulse rounded-lg bg-gray-200" />
-        <div className="h-40 animate-pulse rounded-lg bg-gray-200" />
-      </div>
+    <div aria-hidden="true" className="space-y-lg">
+      <div className="h-20 animate-pulse rounded-md bg-surface-container-high" />
+      <div className="h-24 animate-pulse rounded-md bg-surface-container-high" />
+      <div className="h-72 animate-pulse rounded-md bg-surface-container-high" />
+      <div className="h-40 animate-pulse rounded-md bg-surface-container-high" />
       <div className="space-y-2">
         {[0, 1, 2, 3, 4].map((row) => (
-          <div key={row} className="h-10 animate-pulse rounded bg-gray-200" />
+          <div
+            key={row}
+            className="h-10 animate-pulse rounded bg-surface-container-high"
+          />
         ))}
       </div>
     </div>
@@ -87,35 +88,37 @@ function App() {
   }, [data, filters])
 
   return (
-    <>
-      <h1 className="text-3xl font-bold">Dealership Inventory Dashboard</h1>
-      {isLoading && (
-        <>
-          <p className="sr-only">Loading vehicles…</p>
-          <DashboardSkeleton />
-        </>
-      )}
-      {isError && (
-        <div className="rounded-lg border-2 border-red-400 bg-red-50 p-4">
-          <p className="font-semibold text-red-800">
-            Failed to load vehicles: {error.message}
-          </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="mt-3 rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {data && (
-        <>
-          {isFetching && !isLoading && (
-            <p className="text-sm text-gray-500">Syncing…</p>
-          )}
-          <DashboardStats vehicles={data} />
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+    <div className="min-h-screen bg-page-bg">
+      <div className="mx-auto max-w-7xl space-y-lg p-margin">
+        <h1 className="text-3xl font-bold tracking-tight text-on-surface">
+          Dealership Inventory Dashboard
+        </h1>
+        {isLoading && (
+          <>
+            <p className="sr-only">Loading vehicles…</p>
+            <DashboardSkeleton />
+          </>
+        )}
+        {isError && (
+          <div className="rounded-md border border-error bg-error-container p-lg shadow-elevation-low">
+            <p className="font-semibold text-on-error-container">
+              Failed to load vehicles: {error.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-3 rounded bg-error px-4 py-2 text-sm font-semibold text-on-error hover:opacity-90"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {data && (
+          <>
+            {isFetching && !isLoading && (
+              <p className="text-sm text-on-surface-variant">Syncing…</p>
+            )}
+            <DashboardStats vehicles={data} />
             <AgingStockSummary
               vehicles={data}
               onViewAging={() =>
@@ -134,18 +137,18 @@ function App() {
               onChange={updateFilters}
               onReset={() => updateFilters({})}
             />
-          </div>
-          <VehicleTable
-            vehicles={filteredVehicles}
-            onLogAction={openActionDrawer}
-          />
-        </>
-      )}
-      <ActionLogDrawer
-        vehicle={activeActionVehicle}
-        onClose={closeActionDrawer}
-      />
-    </>
+            <VehicleTable
+              vehicles={filteredVehicles}
+              onLogAction={openActionDrawer}
+            />
+          </>
+        )}
+        <ActionLogDrawer
+          vehicle={activeActionVehicle}
+          onClose={closeActionDrawer}
+        />
+      </div>
+    </div>
   )
 }
 

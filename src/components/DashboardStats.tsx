@@ -24,24 +24,39 @@ function DashboardStats({ vehicles }: DashboardStatsProps) {
   const totalValue = getTotalInventoryValue(vehicles)
 
   return (
-    <div className="flex flex-wrap gap-6">
-      <div>
-        <p>Total Vehicles</p>
-        <p>{total}</p>
-      </div>
-      <div>
-        <p>Aging Stock</p>
-        <p>
-          {agingCount} ({agingPercentage}%)
-        </p>
-      </div>
-      <div>
-        <p>Avg Days in Inventory</p>
-        <p>{avgDays}</p>
-      </div>
-      <div>
-        <p>Total Value</p>
-        <p>{currencyFormatter.format(totalValue)}</p>
+    <div className="rounded-md border border-card-border bg-white p-lg shadow-elevation-low">
+      <h2 className="pb-lg text-xl font-semibold text-on-surface">
+        Inventory Overview
+      </h2>
+      <div className="flex flex-wrap gap-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+            Total Vehicles
+          </p>
+          <p className="text-2xl font-semibold text-on-surface">{total}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+            Aging Stock
+          </p>
+          <p className="text-2xl font-semibold text-on-surface">
+            {agingCount} ({agingPercentage}%)
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+            Avg Days in Inventory
+          </p>
+          <p className="text-2xl font-semibold text-on-surface">{avgDays}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+            Total Value
+          </p>
+          <p className="text-2xl font-semibold text-on-surface">
+            {currencyFormatter.format(totalValue)}
+          </p>
+        </div>
       </div>
     </div>
   )
