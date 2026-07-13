@@ -1,3 +1,4 @@
+import type { NewVehicleInput } from '../lib/inventoryLogic'
 import type { ActionStatus, Vehicle } from '../types/vehicle'
 
 const API_BASE_URL =
@@ -39,4 +40,24 @@ export async function updateVehicleAction(
   }
   const updated: Vehicle = await response.json()
   return { ...updated, id: Number(updated.id) }
+}
+
+export async function createVehicle(input: NewVehicleInput): Promise<Vehicle> {
+  const response = await fetch(`${API_BASE_URL}/vehicles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...input,
+      actionStatus: null,
+      actionNote: null,
+      actionUpdatedAt: null,
+    }),
+  })
+  if (!response.ok) {
+    throw new Error(
+      `Failed to create vehicle: ${response.status} ${response.statusText}`,
+    )
+  }
+  const created: Vehicle = await response.json()
+  return { ...created, id: Number(created.id) }
 }

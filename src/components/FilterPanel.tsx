@@ -30,8 +30,8 @@ function FilterPanel({
   const maxDaysValue = filters.maxDays ?? MAX_DAYS_SLIDER_LIMIT
 
   return (
-    <div className="rounded-md border border-card-border bg-white p-lg shadow-elevation-low">
-      <h2 className="pb-lg text-xl font-semibold text-on-surface">Filters</h2>
+    <div className="rounded-md border border-card-border bg-white p-sm shadow-elevation-low">
+      <h2 className="pb-sm text-xl font-semibold text-on-surface">Filters</h2>
       <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col text-sm text-on-surface-variant">
           Make

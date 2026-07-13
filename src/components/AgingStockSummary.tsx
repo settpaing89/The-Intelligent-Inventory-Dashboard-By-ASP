@@ -28,7 +28,7 @@ function AgingStockSummary({ vehicles, onViewAging }: AgingStockSummaryProps) {
 
   if (agingStockTotal === 0) {
     return (
-      <div className="rounded-md border border-card-border bg-secondary p-lg shadow-elevation-low">
+      <div className="rounded-md border border-card-border bg-secondary p-sm shadow-elevation-low">
         <p className="text-xl font-semibold text-white">
           No aging stock right now — all {total} vehicles are within{' '}
           {AGING_STOCK_THRESHOLD_DAYS} days.
@@ -38,7 +38,7 @@ function AgingStockSummary({ vehicles, onViewAging }: AgingStockSummaryProps) {
   }
 
   return (
-    <div className="rounded-md border border-card-border bg-tertiary-container p-lg shadow-elevation-low">
+    <div className="rounded-md border border-card-border bg-tertiary-container p-sm shadow-elevation-low">
       <p className="text-xl font-semibold text-white">
         {agingStockTotal} of {total} vehicles are aging stock — {agingCount}{' '}
         aging, {criticalCount} critical
@@ -46,7 +46,7 @@ function AgingStockSummary({ vehicles, onViewAging }: AgingStockSummaryProps) {
       <button
         type="button"
         onClick={onViewAging}
-        className="mt-4 rounded bg-white px-4 py-2 text-sm font-semibold text-tertiary-container hover:bg-surface-container"
+        className="mt-2 rounded bg-white px-4 py-2 text-sm font-semibold text-tertiary-container hover:bg-surface-container"
       >
         View aging stock
       </button>

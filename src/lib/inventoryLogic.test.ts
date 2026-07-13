@@ -6,8 +6,14 @@ import {
   getAgingVehicles,
   getAverageDaysInInventory,
   getDaysInInventory,
+  getDaysInInventoryDistribution,
+  getRecommendedAction,
+  getSeverityBreakdownByMake,
   getTotalInventoryValue,
   isAgingStock,
+  paginateVehicles,
+  validateNewVehicle,
+  type NewVehicleInput,
 } from './inventoryLogic'
 import type { Vehicle } from '../types/vehicle'
 
@@ -162,6 +168,32 @@ describe('getAgingSeverity', () => {
   })
 })
 
+describe('getRecommendedAction', () => {
+  it('returns null for 90 (at threshold, not aging)', () => {
+    expect(getRecommendedAction(90)).toBeNull()
+  })
+
+  it('returns "Marketing Push" for 91', () => {
+    expect(getRecommendedAction(91)).toBe('Marketing Push')
+  })
+
+  it('returns "Marketing Push" for 150 (at critical threshold, not over)', () => {
+    expect(getRecommendedAction(150)).toBe('Marketing Push')
+  })
+
+  it('returns "Price Reduction Planned" for 151', () => {
+    expect(getRecommendedAction(151)).toBe('Price Reduction Planned')
+  })
+
+  it('returns null for 0', () => {
+    expect(getRecommendedAction(0)).toBeNull()
+  })
+
+  it('returns null for a negative value', () => {
+    expect(getRecommendedAction(-5)).toBeNull()
+  })
+})
+
 describe('filterVehicles', () => {
   it('returns all vehicles unchanged when no filters are given', () => {
     const result = filterVehicles(fixture, {}, ASOF)
@@ -307,5 +339,466 @@ describe('getTotalInventoryValue', () => {
       makeVehicle({ id: 3, price: 30000 }),
     ]
     expect(getTotalInventoryValue(vehicles)).toBe(60000)
+  })
+})
+
+describe('paginateVehicles', () => {
+  function makeVehicles(count: number): Vehicle[] {
+    return Array.from({ length: count }, (_, i) => makeVehicle({ id: i + 1 }))
+  }
+
+  it('returns totalPages 1, items [], currentPage 1 for an empty array', () => {
+    const result = paginateVehicles([], 1, 15)
+    expect(result).toEqual({ items: [], currentPage: 1, totalPages: 1 })
+  })
+
+  it('splits an exact multiple of pageSize into full pages', () => {
+    const vehicles = makeVehicles(30)
+
+    const page1 = paginateVehicles(vehicles, 1, 15)
+    expect(page1.totalPages).toBe(2)
+    expect(page1.currentPage).toBe(1)
+    expect(page1.items).toHaveLength(15)
+    expect(page1.items.map((v) => v.id)).toEqual(
+      vehicles.slice(0, 15).map((v) => v.id),
+    )
+
+    const page2 = paginateVehicles(vehicles, 2, 15)
+    expect(page2.totalPages).toBe(2)
+    expect(page2.currentPage).toBe(2)
+    expect(page2.items).toHaveLength(15)
+    expect(page2.items.map((v) => v.id)).toEqual(
+      vehicles.slice(15, 30).map((v) => v.id),
+    )
+  })
+
+  it('gives the last page the remainder for a non-multiple of pageSize', () => {
+    const vehicles = makeVehicles(26)
+
+    const page1 = paginateVehicles(vehicles, 1, 15)
+    expect(page1.totalPages).toBe(2)
+    expect(page1.items).toHaveLength(15)
+
+    const page2 = paginateVehicles(vehicles, 2, 15)
+    expect(page2.totalPages).toBe(2)
+    expect(page2.items).toHaveLength(11)
+  })
+
+  it('clamps a page number above totalPages down to the last valid page', () => {
+    const vehicles = makeVehicles(26)
+    const result = paginateVehicles(vehicles, 99, 15)
+    expect(result.currentPage).toBe(2)
+    expect(result.items).toHaveLength(11)
+  })
+
+  it('clamps a page number below 1 up to 1', () => {
+    const vehicles = makeVehicles(26)
+
+    const zero = paginateVehicles(vehicles, 0, 15)
+    expect(zero.currentPage).toBe(1)
+    expect(zero.items).toHaveLength(15)
+
+    const negative = paginateVehicles(vehicles, -5, 15)
+    expect(negative.currentPage).toBe(1)
+    expect(negative.items).toHaveLength(15)
+  })
+
+  it('does not mutate the input array or its elements', () => {
+    const vehicles = makeVehicles(20)
+    const original = vehicles.map((v) => ({ ...v }))
+    paginateVehicles(vehicles, 1, 15)
+    expect(vehicles).toEqual(original)
+  })
+})
+
+describe('getSeverityBreakdownByMake', () => {
+  // Day counts relative to ASOF (2026-07-10) computed with a throwaway
+  // script, same convention as the top-of-file fixture comment:
+  //   2026-06-10 -> 30 days (none)      2026-06-30 -> 10 days (none)
+  //   2025-12-22 -> 200 days (critical) 2026-06-20 -> 20 days (none)
+  //   2026-04-01 -> 100 days (aging)    2026-06-15 -> 25 days (none)
+  //   2026-04-06 -> 95 days (aging)     2026-01-31 -> 160 days (critical)
+  const breakdownFixture: Vehicle[] = [
+    makeVehicle({ id: 1, make: 'Toyota', intakeDate: '2026-06-10' }), // none
+    makeVehicle({ id: 2, make: 'Toyota', intakeDate: '2025-12-22' }), // critical
+    makeVehicle({ id: 3, make: 'Honda', intakeDate: '2026-04-01' }), // aging
+    makeVehicle({ id: 4, make: 'Ford', intakeDate: '2026-06-30' }), // none
+    makeVehicle({ id: 5, make: 'Ford', intakeDate: '2026-06-20' }), // none
+    makeVehicle({ id: 6, make: 'Ford', intakeDate: '2026-06-15' }), // none
+    makeVehicle({ id: 7, make: 'BMW', intakeDate: '2026-04-06' }), // aging
+    makeVehicle({ id: 8, make: 'BMW', intakeDate: '2026-01-31' }), // critical
+  ]
+
+  it('computes correct per-make none/aging/critical/total counts', () => {
+    const result = getSeverityBreakdownByMake(breakdownFixture, ASOF)
+    const byMake = Object.fromEntries(result.map((r) => [r.make, r]))
+
+    expect(byMake.Toyota).toEqual({
+      make: 'Toyota',
+      none: 1,
+      aging: 0,
+      critical: 1,
+      total: 2,
+    })
+    expect(byMake.Honda).toEqual({
+      make: 'Honda',
+      none: 0,
+      aging: 1,
+      critical: 0,
+      total: 1,
+    })
+    expect(byMake.Ford).toEqual({
+      make: 'Ford',
+      none: 3,
+      aging: 0,
+      critical: 0,
+      total: 3,
+    })
+    expect(byMake.BMW).toEqual({
+      make: 'BMW',
+      none: 0,
+      aging: 1,
+      critical: 1,
+      total: 2,
+    })
+  })
+
+  it('sorts descending by (aging + critical), ties broken by total then alphabetically', () => {
+    const result = getSeverityBreakdownByMake(breakdownFixture, ASOF)
+    // BMW: bad=2 total=2 | Toyota: bad=1 total=2 | Honda: bad=1 total=1 | Ford: bad=0 total=3
+    expect(result.map((r) => r.make)).toEqual([
+      'BMW',
+      'Toyota',
+      'Honda',
+      'Ford',
+    ])
+  })
+
+  it('includes a make with zero aging/critical vehicles rather than omitting it', () => {
+    const result = getSeverityBreakdownByMake(breakdownFixture, ASOF)
+    const ford = result.find((r) => r.make === 'Ford')
+    expect(ford).toBeDefined()
+    expect(ford?.aging).toBe(0)
+    expect(ford?.critical).toBe(0)
+  })
+
+  it('does not mutate the input array or its elements', () => {
+    const original = breakdownFixture.map((v) => ({ ...v }))
+    getSeverityBreakdownByMake(breakdownFixture, ASOF)
+    expect(breakdownFixture).toEqual(original)
+  })
+})
+
+describe('getDaysInInventoryDistribution', () => {
+  // Day counts relative to ASOF (2026-07-10), one vehicle per boundary,
+  // computed with a throwaway script:
+  //   2026-06-10 -> 30   2026-05-11 -> 60   2026-04-11 -> 90   2026-03-12 -> 120   2026-02-10 -> 150
+  //   2026-06-09 -> 31   2026-05-10 -> 61   2026-04-10 -> 91   2026-03-11 -> 121   2026-02-09 -> 151
+  const boundaryFixture: Vehicle[] = [
+    makeVehicle({ id: 1, intakeDate: '2026-06-10' }), // 30
+    makeVehicle({ id: 2, intakeDate: '2026-06-09' }), // 31
+    makeVehicle({ id: 3, intakeDate: '2026-05-11' }), // 60
+    makeVehicle({ id: 4, intakeDate: '2026-05-10' }), // 61
+    makeVehicle({ id: 5, intakeDate: '2026-04-11' }), // 90
+    makeVehicle({ id: 6, intakeDate: '2026-04-10' }), // 91
+    makeVehicle({ id: 7, intakeDate: '2026-03-12' }), // 120
+    makeVehicle({ id: 8, intakeDate: '2026-03-11' }), // 121
+    makeVehicle({ id: 9, intakeDate: '2026-02-10' }), // 150
+    makeVehicle({ id: 10, intakeDate: '2026-02-09' }), // 151
+  ]
+
+  it('places each boundary day count in the correct bucket', () => {
+    const result = getDaysInInventoryDistribution(boundaryFixture, ASOF)
+    const byLabel = Object.fromEntries(result.map((r) => [r.label, r.count]))
+
+    expect(byLabel['0-30']).toBe(1) // 30
+    expect(byLabel['31-60']).toBe(2) // 31, 60
+    expect(byLabel['61-90']).toBe(2) // 61, 90
+    expect(byLabel['91-120']).toBe(2) // 91, 120
+    expect(byLabel['121-150']).toBe(2) // 121, 150
+    expect(byLabel['151+']).toBe(1) // 151
+  })
+
+  it('returns buckets in the fixed defined order regardless of counts', () => {
+    const result = getDaysInInventoryDistribution(boundaryFixture, ASOF)
+    expect(result.map((r) => r.label)).toEqual([
+      '0-30',
+      '31-60',
+      '61-90',
+      '91-120',
+      '121-150',
+      '151+',
+    ])
+  })
+
+  it('defaults a negative-days (future intake) vehicle into the "0-30" bucket', () => {
+    const futureVehicle = makeVehicle({ id: 1, intakeDate: '2026-07-20' }) // -10 days
+    const result = getDaysInInventoryDistribution([futureVehicle], ASOF)
+    const byLabel = Object.fromEntries(result.map((r) => [r.label, r.count]))
+    expect(byLabel['0-30']).toBe(1)
+    expect(result.reduce((sum, b) => sum + b.count, 0)).toBe(1)
+  })
+
+  it('total count across all buckets equals the number of vehicles', () => {
+    const result = getDaysInInventoryDistribution(boundaryFixture, ASOF)
+    const total = result.reduce((sum, b) => sum + b.count, 0)
+    expect(total).toBe(boundaryFixture.length)
+  })
+})
+
+describe('validateNewVehicle', () => {
+  // ASOF is 2026-07-10T12:00:00Z, so its UTC year is 2026 -> max valid year
+  // is 2027, and "today" for future-date checks is the UTC calendar date
+  // 2026-07-10.
+  function makeValidInput(
+    overrides: Partial<NewVehicleInput> = {},
+  ): NewVehicleInput {
+    return {
+      make: 'Honda',
+      model: 'Accord',
+      year: 2024,
+      trim: 'EX',
+      color: 'Black',
+      price: 28000,
+      mileage: 5000,
+      vin: '1HGCM82633A123456',
+      intakeDate: '2026-07-01',
+      ...overrides,
+    }
+  }
+
+  const existingVehicles: Vehicle[] = [
+    makeVehicle({ id: 1, vin: '2T1BURHE0JC123456' }),
+  ]
+
+  it('reports valid: true and no errors for a fully valid input', () => {
+    const result = validateNewVehicle(makeValidInput(), existingVehicles, ASOF)
+    expect(result).toEqual({ valid: true, errors: {} })
+  })
+
+  it('rejects a missing make', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ make: '   ' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.make).toBeTruthy()
+  })
+
+  it('rejects a missing model', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ model: '' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.model).toBeTruthy()
+  })
+
+  it('rejects a missing trim', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ trim: '' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.trim).toBeTruthy()
+  })
+
+  it('rejects a missing color', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ color: '' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.color).toBeTruthy()
+  })
+
+  it('rejects a year before 1980', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ year: 1979 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.year).toBeTruthy()
+  })
+
+  it('accepts the boundary year 1980', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ year: 1980 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.errors.year).toBeUndefined()
+  })
+
+  it('rejects a year more than one year in the future', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ year: 2028 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.year).toBeTruthy()
+  })
+
+  it('accepts the boundary year (asOfDate year + 1)', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ year: 2027 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.errors.year).toBeUndefined()
+  })
+
+  it('rejects a zero price', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ price: 0 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.price).toBeTruthy()
+  })
+
+  it('rejects a negative price', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ price: -500 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.price).toBeTruthy()
+  })
+
+  it('rejects a negative mileage', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ mileage: -1 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.mileage).toBeTruthy()
+  })
+
+  it('accepts a mileage of exactly 0', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ mileage: 0 }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.errors.mileage).toBeUndefined()
+  })
+
+  it('rejects a VIN with the wrong length', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ vin: '1HGCM8263' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.vin).toBeTruthy()
+  })
+
+  it('rejects a VIN containing I, O, or Q', () => {
+    const withI = validateNewVehicle(
+      makeValidInput({ vin: '1HGCM8263IA123456' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(withI.errors.vin).toBeTruthy()
+
+    const withO = validateNewVehicle(
+      makeValidInput({ vin: '1HGCM8263OA123456' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(withO.errors.vin).toBeTruthy()
+
+    const withQ = validateNewVehicle(
+      makeValidInput({ vin: '1HGCM8263QA123456' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(withQ.errors.vin).toBeTruthy()
+  })
+
+  it('rejects a VIN with non-alphanumeric characters', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ vin: '1HGCM8263-A12345' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.vin).toBeTruthy()
+  })
+
+  it('rejects a VIN duplicating an existing vehicle, case-insensitively', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ vin: '2t1burhe0jc123456' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.vin).toBeTruthy()
+  })
+
+  it('rejects a future intakeDate', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ intakeDate: '2026-07-11' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.errors.intakeDate).toBeTruthy()
+  })
+
+  it('accepts an intakeDate equal to asOfDate', () => {
+    const result = validateNewVehicle(
+      makeValidInput({ intakeDate: '2026-07-10' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.errors.intakeDate).toBeUndefined()
+  })
+
+  it('rejects a malformed intakeDate string', () => {
+    const notADate = validateNewVehicle(
+      makeValidInput({ intakeDate: 'not-a-date' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(notADate.valid).toBe(false)
+    expect(notADate.errors.intakeDate).toBeTruthy()
+
+    const impossibleDate = validateNewVehicle(
+      makeValidInput({ intakeDate: '2026-13-45' }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(impossibleDate.valid).toBe(false)
+    expect(impossibleDate.errors.intakeDate).toBeTruthy()
+  })
+
+  it('reports every violated rule at once, not just the first', () => {
+    const result = validateNewVehicle(
+      makeValidInput({
+        make: '',
+        year: 1900,
+        price: -1,
+        mileage: -5,
+        vin: 'TOOSHORT',
+        intakeDate: '2099-01-01',
+      }),
+      existingVehicles,
+      ASOF,
+    )
+    expect(result.valid).toBe(false)
+    expect(Object.keys(result.errors).sort()).toEqual(
+      ['intakeDate', 'make', 'mileage', 'price', 'vin', 'year'].sort(),
+    )
   })
 })

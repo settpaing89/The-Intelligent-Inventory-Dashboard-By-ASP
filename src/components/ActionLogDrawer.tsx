@@ -7,6 +7,7 @@ import {
 } from '../types/vehicle'
 import { useUpdateVehicleAction } from '../hooks/useVehicles'
 import { logger } from '../lib/logger'
+import { getDaysInInventory, getRecommendedAction } from '../lib/inventoryLogic'
 
 const INPUT_CLASS =
   'rounded border border-input-border bg-white px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-2 focus:ring-primary-container/10'
@@ -37,8 +38,12 @@ interface ActionLogDrawerFormProps {
 }
 
 function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
+  const daysInInventory = getDaysInInventory(vehicle.intakeDate)
+  const recommendedAction = getRecommendedAction(daysInInventory)
+  const isRecommendation = vehicle.actionStatus === null
+
   const [selectedStatus, setSelectedStatus] = useState<ActionStatus | ''>(
-    vehicle.actionStatus ?? '',
+    vehicle.actionStatus ?? recommendedAction ?? '',
   )
   const [noteText, setNoteText] = useState(vehicle.actionNote ?? '')
   const { mutate, isPending, isError, error } = useUpdateVehicleAction()
@@ -125,6 +130,12 @@ function ActionLogDrawerForm({ vehicle, onClose }: ActionLogDrawerFormProps) {
               ))}
             </select>
           </label>
+          {isRecommendation && recommendedAction !== null && (
+            <p className="-mt-3 text-xs text-on-surface-variant">
+              Suggested based on {daysInInventory} days in inventory — you can
+              change this.
+            </p>
+          )}
 
           <label className="flex flex-col text-sm text-on-surface-variant">
             Note (optional)

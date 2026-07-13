@@ -3,31 +3,42 @@ import { useVehicles } from './hooks/useVehicles'
 import {
   AGING_STOCK_THRESHOLD_DAYS,
   filterVehicles,
+  paginateVehicles,
+  VEHICLE_TABLE_PAGE_SIZE,
   type VehicleFilters,
 } from './lib/inventoryLogic'
 import { logger } from './lib/logger'
 import type { Vehicle } from './types/vehicle'
 import ActionLogDrawer from './components/ActionLogDrawer'
+import AddVehicleDrawer from './components/AddVehicleDrawer'
 import AgingStockSummary from './components/AgingStockSummary'
 import DashboardStats from './components/DashboardStats'
 import FilterPanel from './components/FilterPanel'
 import InventoryInsights from './components/InventoryInsights'
+import PaginationControls from './components/PaginationControls'
 import VehicleTable from './components/VehicleTable'
 
 function DashboardSkeleton() {
   return (
-    <div aria-hidden="true" className="space-y-lg">
-      <div className="h-20 animate-pulse rounded-md bg-surface-container-high" />
-      <div className="h-24 animate-pulse rounded-md bg-surface-container-high" />
-      <div className="h-72 animate-pulse rounded-md bg-surface-container-high" />
-      <div className="h-40 animate-pulse rounded-md bg-surface-container-high" />
-      <div className="space-y-2">
-        {[0, 1, 2, 3, 4].map((row) => (
-          <div
-            key={row}
-            className="h-10 animate-pulse rounded bg-surface-container-high"
-          />
-        ))}
+    <div aria-hidden="true" className="space-y-md">
+      <div className="h-16 animate-pulse rounded-md bg-surface-container-high" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="h-14 animate-pulse rounded-md bg-surface-container-high" />
+        <div className="h-14 animate-pulse rounded-md bg-surface-container-high" />
+        <div className="h-14 animate-pulse rounded-md bg-surface-container-high" />
+        <div className="h-14 animate-pulse rounded-md bg-surface-container-high" />
+      </div>
+      <div className="h-14 animate-pulse rounded-md bg-surface-container-high" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_390px]">
+        <div className="space-y-2">
+          {[0, 1, 2, 3, 4].map((row) => (
+            <div
+              key={row}
+              className="h-10 animate-pulse rounded bg-surface-container-high"
+            />
+          ))}
+        </div>
+        <div className="h-72 animate-pulse rounded-md bg-surface-container-high" />
       </div>
     </div>
   )
@@ -36,9 +47,18 @@ function DashboardSkeleton() {
 function App() {
   const { data, isLoading, isError, error, isFetching, refetch } = useVehicles()
   const [filters, setFilters] = useState<VehicleFilters>({})
+  const [currentPage, setCurrentPage] = useState(1)
   const [activeActionVehicle, setActiveActionVehicle] =
     useState<Vehicle | null>(null)
+  const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false)
   const actionTriggerRef = useRef<HTMLElement | null>(null)
+
+  function closeAddVehicleDrawer(wasCreated?: boolean) {
+    setIsAddVehicleOpen(false)
+    if (wasCreated) {
+      setCurrentPage(1)
+    }
+  }
 
   function updateFilters(
     next: VehicleFilters | ((current: VehicleFilters) => VehicleFilters),
@@ -48,6 +68,7 @@ function App() {
       logger.info('filters_changed', { filters: resolved })
       return resolved
     })
+    setCurrentPage(1)
   }
 
   function openActionDrawer(vehicle: Vehicle) {
@@ -87,12 +108,33 @@ function App() {
     return filterVehicles(data, filters)
   }, [data, filters])
 
+  const {
+    items: paginatedVehicles,
+    currentPage: clampedPage,
+    totalPages,
+  } = useMemo(
+    () =>
+      paginateVehicles(filteredVehicles, currentPage, VEHICLE_TABLE_PAGE_SIZE),
+    [filteredVehicles, currentPage],
+  )
+
   return (
     <div className="min-h-screen bg-page-bg">
-      <div className="mx-auto max-w-7xl space-y-lg p-margin">
-        <h1 className="text-3xl font-bold tracking-tight text-on-surface">
-          Dealership Inventory Dashboard
-        </h1>
+      <div className="mx-auto max-w-7xl space-y-md p-margin">
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-on-surface">
+            Dealership Inventory Dashboard
+          </h1>
+          {data && (
+            <button
+              type="button"
+              onClick={() => setIsAddVehicleOpen(true)}
+              className="rounded bg-primary-container px-4 py-2 text-sm font-semibold text-white hover:bg-primary"
+            >
+              Add Vehicle
+            </button>
+          )}
+        </div>
         {isLoading && (
           <>
             <p className="sr-only">Loading vehicles…</p>
@@ -118,7 +160,6 @@ function App() {
             {isFetching && !isLoading && (
               <p className="text-sm text-on-surface-variant">Syncing…</p>
             )}
-            <DashboardStats vehicles={data} />
             <AgingStockSummary
               vehicles={data}
               onViewAging={() =>
@@ -128,7 +169,7 @@ function App() {
                 }))
               }
             />
-            <InventoryInsights vehicles={data} />
+            <DashboardStats vehicles={data} />
             <FilterPanel
               makes={makes}
               models={models}
@@ -137,15 +178,30 @@ function App() {
               onChange={updateFilters}
               onReset={() => updateFilters({})}
             />
-            <VehicleTable
-              vehicles={filteredVehicles}
-              onLogAction={openActionDrawer}
-            />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_390px]">
+              <div className="space-y-3">
+                <VehicleTable
+                  vehicles={paginatedVehicles}
+                  onLogAction={openActionDrawer}
+                />
+                <PaginationControls
+                  currentPage={clampedPage}
+                  totalPages={totalPages}
+                  totalItems={filteredVehicles.length}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
+              <InventoryInsights vehicles={data} />
+            </div>
           </>
         )}
         <ActionLogDrawer
           vehicle={activeActionVehicle}
           onClose={closeActionDrawer}
+        />
+        <AddVehicleDrawer
+          isOpen={isAddVehicleOpen}
+          onClose={closeAddVehicleDrawer}
         />
       </div>
     </div>

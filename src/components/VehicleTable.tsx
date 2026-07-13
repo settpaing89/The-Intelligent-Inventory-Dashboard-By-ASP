@@ -45,49 +45,37 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
           <tr className="bg-table-header">
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
-              Make
+              Make / Model
             </th>
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
-              Model
+              Year / Trim
             </th>
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
-            >
-              Year
-            </th>
-            <th
-              scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
-            >
-              Trim
-            </th>
-            <th
-              scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
               Days in Inventory
             </th>
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
               Price
             </th>
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
               Status
             </th>
             <th
               scope="col"
-              className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
+              className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-surface-variant"
             >
               Action
             </th>
@@ -103,17 +91,17 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
             return (
               <Fragment key={vehicle.id}>
                 <tr className="border-b border-card-border hover:bg-table-hover">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1">
                     <button
                       type="button"
                       onClick={() => toggleExpanded(vehicle.id)}
                       aria-expanded={isExpanded}
                       aria-controls={detailRowId}
-                      className="flex items-center gap-1 text-left text-sm text-on-surface"
+                      className="flex items-center gap-1 text-left"
                     >
                       <span
                         aria-hidden="true"
-                        className="flex h-8 w-8 items-center justify-center"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center"
                       >
                         <svg
                           viewBox="0 0 20 20"
@@ -129,30 +117,36 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
                           <path d="M7 5l6 5-6 5" />
                         </svg>
                       </span>
-                      {vehicle.make}
+                      <span>
+                        <span className="block text-sm font-semibold text-on-surface">
+                          {vehicle.make}
+                        </span>
+                        <span className="block text-sm text-on-surface-variant">
+                          {vehicle.model}
+                        </span>
+                      </span>
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
-                    {vehicle.model}
+                  <td className="px-3 py-1">
+                    <span className="block text-sm font-semibold text-on-surface">
+                      {vehicle.year}
+                    </span>
+                    <span className="block text-sm text-on-surface-variant">
+                      {vehicle.trim}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
-                    {vehicle.year}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
-                    {vehicle.trim}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">{days}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
+                  <td className="px-3 py-1 text-sm text-on-surface">{days}</td>
+                  <td className="px-3 py-1 text-sm text-on-surface">
                     {vehicle.price}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1">
                     <span
                       className={`rounded-badge px-2 py-0.5 text-[11px] font-medium ${style.badgeBgClass} ${style.badgeTextClass}`}
                     >
                       {style.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1">
                     {severity === 'none' ? (
                       <span className="text-sm text-on-surface-variant">—</span>
                     ) : (
@@ -185,8 +179,8 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
                     className="border-b border-card-border bg-table-header"
                   >
                     <td
-                      colSpan={8}
-                      className="px-4 py-3 text-sm text-on-surface-variant"
+                      colSpan={6}
+                      className="px-3 py-1 text-sm text-on-surface-variant"
                     >
                       <div>VIN: {vehicle.vin}</div>
                       <div>Color: {vehicle.color}</div>
