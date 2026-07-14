@@ -68,22 +68,7 @@ something that will exist in the repo.
 
 ### Vehicle Data Model
 
-Finalized in Stage 2 (`src/types/vehicle.ts`). One flat `Vehicle` record per row in `db.json`, matching json-server's REST-per-resource convention:
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `number` | json-server resource id. **Note (found in Stage 6):** json-server v1 serves `id` as a *string* in every JSON response even though `db.json` stores it as a number — the API client (`src/api/vehicles.ts`) coerces it back to `Number(...)` on both `getVehicles()` and `updateVehicleAction()` so this type is actually honored, not just declared. |
-| `vin` | `string` | 17-char alphanumeric, unique |
-| `make`, `model`, `year`, `trim`, `color` | `string` / `number` | descriptive fields |
-| `price`, `mileage` | `number` | |
-| `intakeDate` | `string` | ISO date (`YYYY-MM-DD`), no time component — the field the aging-stock calculation (Stage 3) will diff against "today" |
-| `actionStatus` | `ActionStatus \| null` | one of a closed 6-value enum (`ACTION_STATUS_OPTIONS`): Price Reduction Planned, Marketing Push, Transfer to Another Location, Send to Auction, Manager Reviewing, No Action Needed. `null` until a manager logs an action. |
-| `actionNote` | `string \| null` | optional free-text, only meaningful once `actionStatus` is set |
-| `actionUpdatedAt` | `string \| null` | ISO datetime, set by the API client on every `PATCH`, not by the caller |
-
-API contract (json-server): `GET /vehicles` returns the full array; `PATCH /vehicles/:id` accepts `{ actionStatus, actionNote?, actionUpdatedAt }` and returns the updated record. The frontend never computes `actionUpdatedAt` outside the API client — `updateVehicleAction()` stamps `new Date().toISOString()` on every call so the timestamp can't drift from the actual write.
-
-The mock API's base URL is externalized via `VITE_API_BASE_URL` (`.env.example`, defaults to `http://localhost:3001` if unset) rather than hardcoded, so pointing the frontend at a real backend later is a config change, not a code change — consistent with the "backend evolution path" in Section 8.
+Finalized in Stage 2 (`src/types/vehicle.ts`), fully documented — field table, `ActionStatus` enum, API contract, and the full seed-data table — in **Appendix A** at the end of this document, alongside the rest of the `inventoryLogic.ts` business-logic reference.
 
 ### Business Logic Layer — Implementation
 
@@ -183,8 +168,11 @@ Applies the design-token spec in `DESIGN.md` (root of the repo — a Material3-s
 | **TanStack Query** | Gives the mock integration real caching/invalidation semantics instead of ad-hoc `useEffect` + `fetch`. This mirrors the sync/cache patterns from data-pipeline work, and means the eventual swap from json-server to a real API is a data-layer change, not a rewrite. |
 | **json-server** | Closest mock-backend option to a real REST contract for near-zero setup cost; satisfies the requirement that a manager's action must actually *persist*, not just live in component state. |
 | **Vitest + React Testing Library** | Native pairing with Vite; tests sit next to the source they cover. |
-| **Recharts** *(Stage 8)* | The two summary charts (aging-severity donut, vehicles-by-make bar) need real SVG rendering, a legend, and a `ResponsiveContainer` that resizes with its parent — reasonable to reach for a maintained charting library here rather than hand-roll SVG, since charting itself isn't the thing being evaluated. |
-| **`tailwind.config.js` (legacy JS config) + `@fontsource/inter`** *(Stage 10)* | Applies `DESIGN.md`'s token spec. Tailwind v4's default is a CSS-first `@theme` block, not a JS config file — opted back into the classic `tailwind.config.js` path via v4's `@config` directive specifically because the styling task named that file, rather than porting the whole token set to `@theme` syntax. `@fontsource/inter` (self-hosted, `latin-*` subset only) over a Google Fonts `<link>` so the app has no runtime dependency on an external font CDN. |
+| **Recharts** *(Stage 8)* | The donut (aging-severity breakdown) and vertical bar (days-in-inventory distribution) charts in `InventoryInsights` need real SVG rendering, a legend, and a `ResponsiveContainer` that resizes with its parent. Lightweight, good TypeScript support, and no real reason to hand-roll SVG chart rendering here — charting itself isn't the thing being evaluated. |
+| **`tailwind.config.js` (legacy JS config)** *(Stage 10)* | Applies `DESIGN.md`'s token spec. Tailwind v4's default is a CSS-first `@theme` block, not a JS config file — opted back into the classic `tailwind.config.js` path via v4's `@config` directive specifically because the styling task named that file, rather than porting the whole token set to `@theme` syntax. |
+| **`@fontsource/inter`** *(Stage 10)* | Self-hosted Inter font matching `DESIGN.md`'s typography spec, imported as the `latin-*` per-weight subset files (400/500/600/700) rather than the default files (which bundle every Unicode subset). Chosen over a Google Fonts `<link>` so the app has no runtime dependency on an external font CDN — the font ships with the build. |
+
+**Design-token approach:** `DESIGN.md`'s color, border-radius, and spacing tokens are transcribed once into `tailwind.config.js`'s `theme.extend` block, not hardcoded per component — every component then references them by utility class (`bg-tertiary-container`, `rounded-md`, `p-sm`, etc.) rather than a literal hex or pixel value. This keeps the design system centrally maintained: a token change in one place (the config) propagates everywhere it's used, instead of requiring a hunt through every component for a repeated literal value.
 
 This scenario also maps directly onto real experience: dashboarding for
 decision-making (Power BI/Tableau background) and the underlying problem
@@ -195,15 +183,18 @@ operations work.
 
 ## 6. Observability Strategy
 
-Finalized and implemented in Stage 7 (lightweight, but real, given this is a frontend-only build):
+Implemented in Stage 7 (lightweight, but real, given this is a frontend-only build), confirmed here directly against `src/lib/logger.ts` and `src/components/ErrorBoundary.tsx`:
 
 - **Structured logging utility** (`src/lib/logger.ts`) — `logger.info`/`warn`/`error`, each producing a single console entry (`console.info`/`warn`/`error`) with an ISO timestamp, level, event name, and a data object. No third-party sink; this is intentionally just a consistent shape for the browser console, not a transport.
 - **Query/mutation lifecycle events**, wired via TanStack Query v5's global `QueryCache`/`MutationCache` config callbacks (constructed in `main.tsx`, passed into the single shared `QueryClient`) rather than per-hook `onSuccess`/`onError` — v5 removed those from `useQuery` itself, so the cache-level config is the only mechanism that still applies uniformly regardless of which component happens to be mounted when a query settles:
-  - `vehicles_fetch_success` (`{ count }`) / `vehicles_fetch_failure` (`{ error }`)
-  - `action_update_success` (`{ vehicleId }`) / `action_update_failure` (`{ vehicleId, error }`)
-- **User-intent events** logged at the point they actually happen, not inferred from state diffs: `filters_changed` (`{ filters }`) fires from a single `updateFilters` wrapper in the dashboard page that every filter-mutating call site (`FilterPanel` onChange/reset, `AgingStockSummary`'s "View aging stock") goes through; `action_update_attempt` (`{ vehicleId, actionStatus }`) fires in `ActionLogDrawer` immediately before `mutate()`, so an attempt is always logged even if the request itself never resolves.
-- **Fetch/mutation state surfaced in the UI itself** (not just the console): a styled error banner with a **Retry** button (calling the query's `refetch`) on initial-load failure, and a small, unobtrusive **"Syncing…"** indicator driven by `isFetching && !isLoading` — so a background refetch (e.g. after an action update invalidates the query) shows a lightweight signal instead of either nothing or a jarring full-page loading state.
-- **Error boundary** (`src/components/ErrorBoundary.tsx`, a class component using `getDerivedStateFromError`/`componentDidCatch`) wraps `<App />` inside `QueryClientProvider` in `main.tsx`, logs `render_error` (`{ error, componentStack }`), and renders a "Something went wrong." fallback with a reload button — so a render failure degrades gracefully instead of blanking the screen.
+  - `vehicles_fetch_success` (`{ count }`) / `vehicles_fetch_failure` (`{ error }`) — from the `QueryCache` config, gated on `query.queryKey[0] === 'vehicles'`.
+  - `action_update_success` (`{ vehicleId }`) / `action_update_failure` (`{ vehicleId, error }`) — from the `MutationCache` config. This config applies globally to **every** mutation in the app (`useUpdateVehicleAction`, `useCreateVehicle`, `useDeleteVehicle` alike), not just action updates; `vehicleId` is read off `variables.id`, which is only a real value for the update-action mutation (its variables object has an `id` field). For a create or delete mutation, `variables` doesn't carry an `id` property in that shape, so `vehicleId` logs as `undefined` under the same event name — a naming carry-over from when action-logging was the only mutation in the app, not a bug, but worth knowing when reading these logs.
+- **User-intent events** logged at the point they actually happen, not inferred from state diffs:
+  - `filters_changed` (`{ filters }`) — fires from a single `updateFilters` wrapper in `App.tsx` that every filter-mutating call site (`FilterPanel` onChange/reset, `AgingStockSummary`'s "View aging stock") goes through.
+  - `action_update_attempt` (`{ vehicleId, actionStatus }`) — fires in `ActionLogDrawer` immediately before `mutate()`, so an attempt is always logged even if the request itself never resolves.
+  - `vehicle_create_attempt` (`{ vin, make, model }`) — fires in `AddVehicleDrawer` immediately before `mutate()`, once `validateNewVehicle` has already passed.
+- **Fetch/mutation state surfaced in the UI itself** (not just the console): a `DashboardSkeleton` loading state (a handful of `animate-pulse` blocks, paired with a `.sr-only` "Loading vehicles…" announcement for screen readers) while the initial fetch is pending; a styled error banner with a **Retry** button (calling the query's `refetch`) on initial-load failure; and a small, unobtrusive **"Syncing…"** indicator driven by `isFetching && !isLoading` — so a background refetch (e.g. after a mutation invalidates the query) shows a lightweight signal instead of either nothing or a jarring full-page loading state.
+- **Error boundary** (`src/components/ErrorBoundary.tsx`, a class component using `getDerivedStateFromError`/`componentDidCatch`) wraps `<App />` inside `QueryClientProvider` in `main.tsx`. On a thrown render error it logs `render_error` (`{ error, componentStack }`) and renders a fixed fallback: a centered "Something went wrong." message plus a "Reload page" button that calls `window.location.reload()` — no retry-in-place, no partial recovery, just a full reload — so a render failure degrades to a clear, actionable dead end instead of a blank screen.
 
 What a production version would add (documented here, not built, since it's
 out of scope for a mocked backend):
@@ -331,3 +322,183 @@ Process:
 | 2026-07-13 | 3 (Vehicle Data Model, Business Logic Layer), 5 (Tech Stack) | **The previous entry's fix was insufficient — user hit the identical `DELETE .../vehicles/NaN` failure again on a second newly-created vehicle, reported with a screenshot.** Root cause was misdiagnosed the first time: the real problem isn't that json-server *fails* to auto-increment from existing numeric ids, it's that `json-server`'s `create()` (`node_modules/json-server/lib/service.js` line 107: `const item = { ...data, id: randomId() }`) **unconditionally discards any `id` the client sends and overwrites it with its own random string**, confirmed directly by reading the library source and by a raw `curl -X POST` with an explicit `id: 999` in the body, which still came back with a random string id. So the previous fix — computing `nextId` client-side and sending it in the POST body — could never have worked; json-server throws that value away every time. Actually fixed this time by no longer fighting the library: `Vehicle.id` changed from `number` to `string` everywhere (`types/vehicle.ts`), and every `Number(id)` coercion removed from `api/vehicles.ts` (`getVehicles`/`updateVehicleAction`/`createVehicle`/`deleteVehicle` all just pass the id straight through as the opaque string json-server actually assigns — whether that happens to look numeric, like the seed data's `"1"`–`"25"`, or is a random string like `"0eSnkshRMpo"`, doesn't matter, since nothing in this codebase does arithmetic or numeric comparison on an id, only identity checks and URL interpolation). `VehicleTable`'s `expandedIds` became `Set<string>`, `useUpdateVehicleAction`'s `mutationFn` signature updated, and `AddVehicleDrawer`'s now-pointless `existingVehicles` threading (an artifact of the wrong first fix) was reverted. `inventoryLogic.test.ts`'s `makeVehicle` fixture helper stringifies its `id` internally so none of its ~30 call sites across the file needed touching individually | The wrong first fix passed every check available at the time — build, lint, all 85 tests, and even a live throwaway RTL test — because none of those actually POST a vehicle and then immediately act on it against a *real, unmodified* `json-server` process the way this bug requires; the previous verification's real end-to-end test happened to run against a version of the code from *before* forgetting that json-server ignores client ids was even possible to detect without reading its source. Lesson worth keeping: for a bug this specific (a third-party mock server's internal ID-assignment behavior), reading the library's actual source was faster and more conclusive than several rounds of guessing-and-testing against its HTTP surface — done via a plain `curl -X POST` with an explicit id, which settled the question in one request. Separately, and unrelated to this bug, live verification here surfaced a second, adjacent issue worth recording: this specific `json-server`/lowdb setup can silently **lose a write** when multiple mutations fire in rapid succession (an automated test's POST→PATCH→DELETE within ~1 second saw every individual request return a successful HTTP response, yet the last-standing on-disk state didn't reflect the middle PATCH or the final DELETE) — confirmed by re-issuing the same DELETE deliberately, in isolation, seconds later, which persisted correctly and was verified with a follow-up GET returning 404. This reads as a write-race under this particular file-backed mock database, most likely to bite automated/scripted rapid-fire testing rather than normal human click-pace usage, and is a mock-server characteristic to work around in future verification (space out mutating requests, or verify with an isolated follow-up read after a pause) rather than something fixable in this app's own code. Verified end-to-end against a freshly-restarted live server with a throwaway test (deleted after use): created a real vehicle through the actual `AddVehicleDrawer` UI, confirmed its server-assigned `id` is a non-empty string (not `NaN`), issued a `PATCH` against that id (the same request "Update Action" would send — no UI button for it here since a same-day-intake vehicle is healthy stock and `VehicleTable` correctly shows no action button for `severity === "none"`) and confirmed it returned success, then removed the vehicle through the real Remove Vehicle → `ConfirmDialog` → Remove UI flow and confirmed the server-side `DELETE` actually succeeded. All 85 existing tests pass (with `inventoryLogic.test.ts`'s id fixtures now strings throughout), build/lint/Prettier clean. Also directly repaired two more live vehicles the user had created between the first (wrong) and second (real) fix, both of which had the same random-string-id symptom. |
 | 2026-07-13 | 3 (Visual Design System subsection) | **Bug found and fixed, reported directly by the user with a screenshot:** `ConfirmDialog`'s panel used `max-w-sm`, which — per the `theme.extend.spacing`/`maxWidth` key-name collision flagged (and left unfixed by design) two entries above — compiled to `max-width:8px` instead of the intended `24rem`, rendering the Remove-vehicle dialog as an unusably narrow sliver with text wrapping one or two words per line. Fixed with `max-w-[24rem]`, the same arbitrary-value workaround already established for `ActionLogDrawer` | This is the exact landmine the earlier entry explicitly warned about ("any future use of `max-w-sm`/... will silently resolve to the tiny spacing-scale value") — written down, then not actually checked against while building `ConfirmDialog` a few stages later, so it shipped anyway and reached the user before being caught. Re-grepped the whole codebase for every other `max-w-*`/`w-*`/`h-*` usage against the specific colliding key names (`xs`/`sm`/`md`/`lg`/`xl`/`base`/`gutter`/`margin`) after this fix and found no other current offenders — but given this is the second time a "known, documented" risk has actually shipped a real bug, any *new* component work in this codebase should treat "does this use a named max-width/width/height utility, and if so does it collide" as an active pre-merge check, not just a note to remember. Verified: build confirms `.max-w-\[24rem\]{max-width:24rem}` in the compiled CSS; 85 tests pass, lint/Prettier clean. True on-screen rendering not re-confirmed in a real browser (no browser-automation tooling by design), but the fix is mechanically identical to the already-confirmed-working `ActionLogDrawer` fix, and the dev server picks up a plain CSS class change via HMR with no restart needed (unlike the adjacent `json-server` data-layer issues in the two entries above). |
 | 2026-07-13 | 3 (Dashboard UI Implementation, Visual Design System subsection) | Two changes: (1) `AgingStockSummary`'s aging-stock branch redesigned from a tall dark block to a compact single row on a light `tertiary-fixed`/`tertiary-fixed-dim` gradient (icon, tightly-stacked headline+subline, button pinned right) — the requested white button text on the new solid-orange (`on-tertiary-container`) fill was checked and found to fail WCAG AA at ~2.53:1, so `on-surface` dark text was used instead (~6.79:1); (2) the `InventoryInsights` sidebar no longer stretches to match `VehicleTable`'s height (`lg:items-start` on the grid row), and is now bounded (`lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto`) and sticky (`lg:sticky lg:top-4`) so it stays visible during a long scroll instead of requiring a scroll back up — all `lg:`-gated so none of it applies at the single-column mobile breakpoint | The button-text failure is the same category of thing as the Stage 8 badge audit and the Stage-10-plus heatmap text-color work — checked with the same hand relative-luminance script rather than trusting a plausible-sounding literal instruction, per this request's own explicit "recheck... don't guess" framing. The sticky behavior was called out to the user as an addition beyond the literal ask, per instruction to flag such additions, since "bounded + scrollable" alone would have fully satisfied the stated requirement without it. Also, having been burned twice already by the documented `theme.extend.spacing`/Tailwind-scale key collision (`ActionLogDrawer`'s `sm:max-w-md`, then `ConfirmDialog`'s `max-w-sm`), and introducing a brand-new utility category here (`bg-linear-to-r`/gradient stops, `sticky`/`top-4`, arbitrary `max-h-[calc(...)]`) on a project already proven to have silent Tailwind-utility footguns, didn't just assume any of it compiled — grepped the actual compiled CSS for every new class after building and confirmed each resolved to the intended real value, including tracing `top-4` back to the base `--spacing` root variable specifically to rule out the *same* collision category striking a third time. Verified end-to-end against the live mock API with a throwaway test (deleted after use): confirmed the banner's gradient classes, dark (not white) text on both the headline and the button, and the button's solid orange background; confirmed the sidebar wrapper (a layout-only wrapper around `InventoryInsights`'s own unchanged card, not styling baked into the card) carries all of `sticky`/`top-4`/`max-h`/`overflow-y-auto`, all `lg:`-prefixed. All 85 tests pass unmodified, build/lint/Prettier clean — pure styling/layout change, no business logic touched. |
+| 2026-07-14 | 3 (Vehicle Data Model), 5 (Tech Stack), 6 (Observability), new Appendix A | Moved the Vehicle Data Model subsection out of Section 3 into a new **Appendix A**, which now also documents (with real signatures read directly from `inventoryLogic.ts`) the Aging & Severity, Filtering, Pagination, Aggregates & Insights, and New Vehicle Validation groups of functions, plus a generated seed-data table for the original 26 vehicles. Split the Tech Stack table's combined `tailwind.config.js`/`@fontsource/inter` row into two separate rows and added a short note on the design-token-centralization approach (tokens extended into `tailwind.config.js`'s `theme.extend`, not hardcoded per component). Rewrote Section 6 in definitive present tense with the exact logged event list re-verified against `logger.ts`/`main.tsx`/`ActionLogDrawer.tsx`/`AddVehicleDrawer.tsx`/`ErrorBoundary.tsx` source | Section 3's Vehicle Data Model content had drifted stale (`id` was still documented as `number` with a `Number(...)` coercion note, superseded by the 2026-07-13 `string`-id fix two entries above) — corrected while moving it. Also caught two real gaps the previous Section 6 text glossed over: it never mentioned `vehicle_create_attempt` (added in the Add Vehicle stage but never logged in this doc), and it implied `action_update_success`/`action_update_failure` were scoped to action-update mutations specifically, when the `MutationCache` config in `main.tsx` is actually global — it fires under those same event names for `useCreateVehicle`/`useDeleteVehicle` too, just with `vehicleId: undefined` since neither mutation's variables carry an `id` field. Verified: `inventoryLogic.ts` and `inventoryLogic.test.ts` read in full; every `logger.info`/`warn`/`error` call site found via `grep -rn` across `src/`; `main.tsx`, `useVehicles.ts`, and `api/vehicles.ts` read directly to confirm which mutation variables actually carry an `id`; `ErrorBoundary.tsx` read directly for its exact fallback markup. No application code changed — documentation only. |
+---
+
+## Appendix A: Vehicle Data Model & Business Logic Reference
+
+Full field/type reference for `src/types/vehicle.ts` and every exported function in `src/lib/inventoryLogic.ts`, verified directly against source rather than reconstructed from the narrative sections above. The narrative subsections in Section 3 describe *why* each piece exists and how it's wired into the UI; this appendix is the precise, standalone signature reference.
+
+### Vehicle & ActionStatus
+
+One flat `Vehicle` record per row in `db.json`, matching json-server's REST-per-resource convention:
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `string` | json-server's opaque resource id. **Not numeric-parseable in general** — the seed data's ids happen to look numeric (`"1"`–`"26"`), but ids assigned to vehicles created via `POST` are random strings (e.g. `"0eSnkshRMpo"`), since json-server's `create()` unconditionally overwrites any client-supplied `id` with its own `randomId()`. `Vehicle.id` was originally typed `number` with a `Number(...)` coercion in the API client; both were removed once this was root-caused (see the 2026-07-13 Revision Log entries) — `id` is treated as an opaque identifier everywhere, never compared or computed on numerically. |
+| `vin` | `string` | 17-char alphanumeric, unique |
+| `make`, `model`, `year`, `trim`, `color` | `string` / `number` | descriptive fields |
+| `price`, `mileage` | `number` | |
+| `intakeDate` | `string` | ISO date (`YYYY-MM-DD`), no time component — the field the aging-stock calculation diffs against "today" |
+| `actionStatus` | `ActionStatus \| null` | one of a closed 6-value enum (`ACTION_STATUS_OPTIONS`): Price Reduction Planned, Marketing Push, Transfer to Another Location, Send to Auction, Manager Reviewing, No Action Needed. `null` until a manager logs an action. |
+| `actionNote` | `string \| null` | optional free-text, only meaningful once `actionStatus` is set |
+| `actionUpdatedAt` | `string \| null` | ISO datetime, set by the API client on every `PATCH`, not by the caller |
+
+API contract (json-server): `GET /vehicles` returns the full array; `PATCH /vehicles/:id` accepts `{ actionStatus, actionNote?, actionUpdatedAt }` and returns the updated record; `POST /vehicles` accepts a new vehicle body (server assigns `id`) and returns the created record; `DELETE /vehicles/:id` removes the record. The frontend never computes `actionUpdatedAt` outside the API client — `updateVehicleAction()` stamps `new Date().toISOString()` on every call so the timestamp can't drift from the actual write.
+
+The mock API's base URL is externalized via `VITE_API_BASE_URL` (`.env.example`, defaults to `http://localhost:3001` if unset) rather than hardcoded, so pointing the frontend at a real backend later is a config change, not a code change — consistent with the "backend evolution path" in Section 8.
+
+### Aging & Severity
+
+```ts
+export const AGING_STOCK_THRESHOLD_DAYS = 90
+export const CRITICAL_STOCK_THRESHOLD_DAYS = 150
+
+export type AgingSeverity = 'none' | 'aging' | 'critical'
+
+function getDaysInInventory(intakeDate: string, asOfDate: Date = new Date()): number
+function isAgingStock(daysInInventory: number): boolean
+function getAgingSeverity(daysInInventory: number): AgingSeverity
+function getRecommendedAction(daysInInventory: number): ActionStatus | null
+```
+
+`getAgingSeverity` is a strict three-tier read on the day count: `"none"` at ≤90 days, `"aging"` at 91–150, `"critical"` above 150 (`isAgingStock` alone only distinguishes the 90-day line, not the 150-day one).
+
+`getRecommendedAction` is a **simple rule-based lookup, not machine learning** — it calls `getAgingSeverity` and switches on the result (`"critical"` → `"Price Reduction Planned"`, `"aging"` → `"Marketing Push"`, `"none"` → `null`). It introduces no day-boundary constant of its own and reuses `getAgingSeverity`'s existing thresholds rather than defining a separate, potentially-drifting set of cutoffs.
+
+### Filtering
+
+```ts
+export interface VehicleFilters {
+  make?: string
+  model?: string
+  minDays?: number
+  maxDays?: number
+  year?: number
+  vin?: string
+}
+
+function filterVehicles(vehicles: Vehicle[], filters: VehicleFilters, asOfDate: Date = new Date()): Vehicle[]
+```
+
+`year` and `vin` were added after the original `make`/`model`/`minDays`/`maxDays` set (Stage 9). All six fields AND-combine: `make`/`model` case-insensitive exact match, `year` exact match, `vin` case-insensitive substring match, `minDays`/`maxDays` an inclusive range against `getDaysInInventory`. `undefined` or an empty/falsy string uniformly means "no active filter" for every field — filtering never treats an unset field as "match nothing."
+
+### Pagination
+
+```ts
+export const VEHICLE_TABLE_PAGE_SIZE = 15
+
+function paginateVehicles(
+  vehicles: Vehicle[],
+  page: number,
+  pageSize: number,
+): { items: Vehicle[]; currentPage: number; totalPages: number }
+```
+
+Clamps `page` into `[1, totalPages]` rather than trusting the caller; `totalPages` is `Math.max(1, Math.ceil(vehicles.length / pageSize))`, so it's never `0`, even for an empty array.
+
+### Aggregates & Insights
+
+```ts
+function getAverageDaysInInventory(vehicles: Vehicle[], asOfDate: Date = new Date()): number
+function getTotalInventoryValue(vehicles: Vehicle[]): number
+
+export interface MakeSeverityBreakdown {
+  make: string
+  none: number
+  aging: number
+  critical: number
+  total: number
+}
+function getSeverityBreakdownByMake(vehicles: Vehicle[], asOfDate: Date = new Date()): MakeSeverityBreakdown[]
+
+export const DAYS_IN_INVENTORY_BUCKETS = [
+  { label: '0-30', min: 0, max: 30 },
+  { label: '31-60', min: 31, max: 60 },
+  { label: '61-90', min: 61, max: 90 },
+  { label: '91-120', min: 91, max: 120 },
+  { label: '121-150', min: 121, max: 150 },
+  { label: '151+', min: 151, max: Infinity },
+] as const
+
+export interface DaysDistributionBucket {
+  label: string
+  count: number
+}
+function getDaysInInventoryDistribution(vehicles: Vehicle[], asOfDate: Date = new Date()): DaysDistributionBucket[]
+```
+
+`getAverageDaysInInventory` returns `0` for an empty array rather than `NaN`. `getSeverityBreakdownByMake` returns every make present in the input — including one with zero `aging`/`critical` vehicles — sorted worst-first (`aging + critical` descending, ties broken by `total` descending, then alphabetically). `getDaysInInventoryDistribution` always returns all six buckets in their fixed order regardless of count; a negative day count (future intake date) is defensively placed into the `"0-30"` bucket rather than dropped, since no bucket's `min` goes below `0`.
+
+### New Vehicle Validation
+
+```ts
+export interface NewVehicleInput {
+  make: string
+  model: string
+  year: number
+  trim: string
+  color: string
+  price: number
+  mileage: number
+  vin: string
+  intakeDate: string
+}
+
+export interface ValidationResult {
+  valid: boolean
+  errors: Partial<Record<keyof NewVehicleInput, string>>
+}
+
+function validateNewVehicle(
+  input: NewVehicleInput,
+  existingVehicles: Vehicle[],
+  asOfDate: Date = new Date(),
+): ValidationResult
+```
+
+Current validation rules, as implemented:
+
+- `make`, `model`, `trim`, `color` — each required, rejected if blank after trimming.
+- `year` — must be an integer in `[1980, asOfDate's UTC year + 1]`.
+- `price` — must be a finite number `> 0`.
+- `mileage` — must be an integer `>= 0`.
+- `vin` — trimmed and uppercased, then: must be exactly 17 characters; must contain only letters and digits; must not contain the letters `I`, `O`, or `Q` (the real-world VIN check-digit exclusions); must be case-insensitively unique against `existingVehicles`.
+- `intakeDate` — must be a real, round-trippable `YYYY-MM-DD` calendar date (validated by re-encoding through `Date.UTC` and comparing components back, since `Date.UTC` silently normalizes an out-of-range value like month 13 into a different valid date rather than rejecting it) and must not be after `asOfDate`.
+
+Every applicable rule is checked independently and every violation is reported at once in `errors` — submitting six simultaneous violations produces six populated error keys, not just the first one encountered.
+
+### A note on the seed-data count
+
+The table below reflects `mock-server/db.json`'s original 26-vehicle seed design. Because the Add/Remove Vehicle feature has been exercised during manual testing, the *live* vehicle count in a running instance of this app may now be higher, lower, or contain vehicles not listed below — this table documents the initial seed, not necessarily the current on-disk state.
+
+### Seed Data (original 26 vehicles)
+
+| id | VIN | Make | Model | Year | Trim | Color | Price | Mileage | Intake Date | Action Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | PM06NWP01DZNY6Y06 | Hyundai | Elantra | 2025 | SEL | White | 30800 | 17247 | 2026-07-06 | — |
+| 2 | SG10BHRX8BZW1NGN5 | Hyundai | Tucson | 2022 | Limited | Red | 35700 | 41250 | 2026-07-02 | — |
+| 3 | FRW8AX73YG3F8K4BR | Chevrolet | Equinox | 2021 | LS | Red | 38600 | 6998 | 2026-06-27 | — |
+| 4 | RW67HPV8MR6N1987C | Subaru | Outback | 2024 | Limited | Green | 19600 | 8159 | 2026-06-21 | — |
+| 5 | 27LBDFAL7YYCP3DED | Toyota | Camry | 2021 | LE | Silver | 19600 | 9678 | 2026-06-12 | — |
+| 6 | FR9305BMSUDF3V30U | Chevrolet | Silverado 1500 | 2025 | WT | Black | 20600 | 32809 | 2026-06-05 | — |
+| 7 | XRJ1CUDAH1JXCR9L1 | BMW | 3 Series | 2023 | M340i | Beige | 40500 | 3693 | 2026-05-29 | — |
+| 8 | 4Z9J2P44MM97YC7HC | Toyota | Corolla | 2021 | L | Silver | 41100 | 6797 | 2026-05-15 | — |
+| 9 | S8WGL2BT1W9CJGKWA | Hyundai | Elantra | 2023 | SEL | Green | 41500 | 11048 | 2026-05-07 | — |
+| 10 | XF4PY8LZM62NKN9GF | Chevrolet | Silverado 1500 | 2023 | RST | Red | 39200 | 13087 | 2026-04-28 | — |
+| 11 | 0JFLZK78ZV4DR3XFC | Toyota | Corolla | 2023 | LE | Green | 38300 | 42833 | 2026-04-15 | — |
+| 12 | 53YYB8T6RTAXUVYWU | Ford | Escape | 2025 | Titanium | White | 19300 | 30472 | 2026-04-10 | — |
+| 13 | 193FVPEF15ND7DAL6 | Ford | Escape | 2022 | S | Black | 22700 | 29500 | 2026-04-09 | Manager Reviewing |
+| 14 | 751Z31XXYCU0TMEL3 | Nissan | Altima | 2023 | S | White | 21300 | 39411 | 2026-04-05 | Marketing Push |
+| 15 | 7UCGT6KSUBWXUBL2R | Kia | Forte | 2024 | LXS | Red | 25600 | 13125 | 2026-03-28 | Transfer to Another Location |
+| 16 | LKX6E5S9Z1WT0SCE8 | Chevrolet | Equinox | 2023 | LT | Black | 41200 | 40439 | 2026-03-20 | No Action Needed |
+| 17 | LBEK1N0NLNSRKFA2C | Hyundai | Tucson | 2025 | SE | Blue | 39600 | 7678 | 2026-03-12 | Marketing Push |
+| 18 | K9KGVC5J5D7NTKJ03 | Honda | CR-V | 2023 | LX | White | 35600 | 28052 | 2026-03-04 | — |
+| 19 | VPXB5KR8GN07CZ9PC | Subaru | Outback | 2025 | Premium | Silver | 29400 | 41792 | 2026-02-24 | — |
+| 20 | KPKBL0KF0NEYPDE5Z | Toyota | Camry | 2021 | LE | Silver | 39000 | 13951 | 2026-02-16 | — |
+| 21 | RYBPDX3APUMYR56AS | Hyundai | Tucson | 2021 | Limited | Blue | 41200 | 4035 | 2026-02-09 | — |
+| 22 | XZ161ATYKEA6UJ03R | Chevrolet | Silverado 1500 | 2024 | RST | Silver | 30600 | 10422 | 2025-12-11 | — |
+| 23 | B38LKK95MT30EJC1G | Nissan | Altima | 2025 | SV | Gray | 25800 | 19431 | 2025-10-22 | — |
+| 24 | N1F4L2SHK8PM8S0TT | Hyundai | Elantra | 2021 | SE | Green | 32600 | 28888 | 2025-09-07 | — |
+| 25 | XAKXGCD68CBWRGSNF | Toyota | Corolla | 2024 | L | Green | 23900 | 13446 | 2025-07-24 | — |
+| 26 | CEWUX5X2D4ASN5X5M | Toyota | Camry | 2025 | LE | Beige | 36800 | 10258 | 2025-06-09 | — |
