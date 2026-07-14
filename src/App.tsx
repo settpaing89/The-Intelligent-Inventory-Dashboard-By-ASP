@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { useVehicles } from './hooks/useVehicles'
+import { useDeleteVehicle, useVehicles } from './hooks/useVehicles'
 import {
   AGING_STOCK_THRESHOLD_DAYS,
   filterVehicles,
@@ -12,6 +12,7 @@ import type { Vehicle } from './types/vehicle'
 import ActionLogDrawer from './components/ActionLogDrawer'
 import AddVehicleDrawer from './components/AddVehicleDrawer'
 import AgingStockSummary from './components/AgingStockSummary'
+import ConfirmDialog from './components/ConfirmDialog'
 import DashboardStats from './components/DashboardStats'
 import FilterPanel from './components/FilterPanel'
 import InventoryInsights from './components/InventoryInsights'
@@ -51,13 +52,38 @@ function App() {
   const [activeActionVehicle, setActiveActionVehicle] =
     useState<Vehicle | null>(null)
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false)
+  const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null)
   const actionTriggerRef = useRef<HTMLElement | null>(null)
+  const {
+    mutate: deleteVehicleMutate,
+    isPending: isDeletePending,
+    error: deleteError,
+    reset: resetDeleteError,
+  } = useDeleteVehicle()
 
   function closeAddVehicleDrawer(wasCreated?: boolean) {
     setIsAddVehicleOpen(false)
     if (wasCreated) {
       setCurrentPage(1)
     }
+  }
+
+  function requestRemoveVehicle(vehicle: Vehicle) {
+    resetDeleteError()
+    setVehicleToDelete(vehicle)
+  }
+
+  function cancelRemoveVehicle() {
+    setVehicleToDelete(null)
+  }
+
+  function confirmRemoveVehicle() {
+    if (!vehicleToDelete) {
+      return
+    }
+    deleteVehicleMutate(vehicleToDelete.id, {
+      onSuccess: () => setVehicleToDelete(null),
+    })
   }
 
   function updateFilters(
@@ -178,11 +204,12 @@ function App() {
               onChange={updateFilters}
               onReset={() => updateFilters({})}
             />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_390px]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_390px] lg:items-start">
               <div className="space-y-3">
                 <VehicleTable
                   vehicles={paginatedVehicles}
                   onLogAction={openActionDrawer}
+                  onRemoveVehicle={requestRemoveVehicle}
                 />
                 <PaginationControls
                   currentPage={clampedPage}
@@ -191,7 +218,9 @@ function App() {
                   onPageChange={setCurrentPage}
                 />
               </div>
-              <InventoryInsights vehicles={data} />
+              <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+                <InventoryInsights vehicles={data} />
+              </div>
             </div>
           </>
         )}
@@ -202,6 +231,22 @@ function App() {
         <AddVehicleDrawer
           isOpen={isAddVehicleOpen}
           onClose={closeAddVehicleDrawer}
+        />
+        <ConfirmDialog
+          isOpen={vehicleToDelete !== null}
+          title="Remove vehicle?"
+          message={
+            vehicleToDelete
+              ? `${vehicleToDelete.year} ${vehicleToDelete.make} ${vehicleToDelete.model} (VIN: ${vehicleToDelete.vin}). This cannot be undone.`
+              : ''
+          }
+          confirmLabel="Remove"
+          onConfirm={confirmRemoveVehicle}
+          onCancel={cancelRemoveVehicle}
+          isPending={isDeletePending}
+          errorMessage={
+            deleteError instanceof Error ? deleteError.message : null
+          }
         />
       </div>
     </div>

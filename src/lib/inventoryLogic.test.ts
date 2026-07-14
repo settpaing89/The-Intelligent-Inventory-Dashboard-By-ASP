@@ -19,7 +19,13 @@ import type { Vehicle } from '../types/vehicle'
 
 const ASOF = new Date('2026-07-10T12:00:00Z')
 
-function makeVehicle(overrides: Partial<Vehicle> & { id: number }): Vehicle {
+// Vehicle.id is a string (json-server's actual id shape — see
+// SYSTEM_DESIGN.md's Revision Log for why), but every call site in this
+// file passes a plain number for readability/brevity; stringify it here so
+// callers don't all need updating individually.
+function makeVehicle(
+  overrides: Partial<Omit<Vehicle, 'id'>> & { id: number },
+): Vehicle {
   return {
     vin: `VIN${overrides.id}`.padEnd(17, '0'),
     make: 'Toyota',
@@ -34,6 +40,7 @@ function makeVehicle(overrides: Partial<Vehicle> & { id: number }): Vehicle {
     actionNote: null,
     actionUpdatedAt: null,
     ...overrides,
+    id: String(overrides.id),
   }
 }
 
@@ -202,7 +209,7 @@ describe('filterVehicles', () => {
 
   it('filters by make only, case-insensitively', () => {
     const result = filterVehicles(fixture, { make: 'toyota' }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([1, 2, 4])
+    expect(result.map((v) => v.id)).toEqual(['1', '2', '4'])
   })
 
   it('filters by make and model together', () => {
@@ -211,22 +218,22 @@ describe('filterVehicles', () => {
       { make: 'Toyota', model: 'Camry' },
       ASOF,
     )
-    expect(result.map((v) => v.id)).toEqual([1, 4])
+    expect(result.map((v) => v.id)).toEqual(['1', '4'])
   })
 
   it('filters by minDays only', () => {
     const result = filterVehicles(fixture, { minDays: 90 }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([2, 3, 4, 5])
+    expect(result.map((v) => v.id)).toEqual(['2', '3', '4', '5'])
   })
 
   it('filters by maxDays only', () => {
     const result = filterVehicles(fixture, { maxDays: 90 }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([1, 2, 6])
+    expect(result.map((v) => v.id)).toEqual(['1', '2', '6'])
   })
 
   it('filters by minDays and maxDays together (inclusive range)', () => {
     const result = filterVehicles(fixture, { minDays: 45, maxDays: 91 }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([1, 2, 3])
+    expect(result.map((v) => v.id)).toEqual(['1', '2', '3'])
   })
 
   it('treats an empty-string make the same as no filter', () => {
@@ -256,12 +263,12 @@ describe('filterVehicles', () => {
 
   it('filters by year, exact match', () => {
     const result = filterVehicles(fixture, { year: 2024 }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([1, 3, 5])
+    expect(result.map((v) => v.id)).toEqual(['1', '3', '5'])
   })
 
   it('filters by year combined with make', () => {
     const result = filterVehicles(fixture, { year: 2024, make: 'Toyota' }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([1])
+    expect(result.map((v) => v.id)).toEqual(['1'])
   })
 
   it('treats an undefined year the same as no filter', () => {
@@ -271,7 +278,7 @@ describe('filterVehicles', () => {
 
   it('filters by vin, case-insensitive substring match', () => {
     const result = filterVehicles(fixture, { vin: 'vin3' }, ASOF)
-    expect(result.map((v) => v.id)).toEqual([3])
+    expect(result.map((v) => v.id)).toEqual(['3'])
   })
 
   it('treats an empty-string vin the same as no filter', () => {
@@ -293,11 +300,11 @@ describe('filterVehicles', () => {
 describe('getAgingVehicles', () => {
   it('returns only vehicles whose computed days exceed 90', () => {
     const result = getAgingVehicles(fixture, ASOF)
-    expect(result.map((v) => v.id)).toEqual([3, 4, 5])
+    expect(result.map((v) => v.id)).toEqual(['3', '4', '5'])
   })
 
   it('returns an empty array when none qualify', () => {
-    const notAging = fixture.filter((v) => v.id === 1 || v.id === 2)
+    const notAging = fixture.filter((v) => v.id === '1' || v.id === '2')
     expect(getAgingVehicles(notAging, ASOF)).toEqual([])
   })
 

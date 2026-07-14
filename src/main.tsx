@@ -28,11 +28,11 @@ const queryCache = new QueryCache({
 
 const mutationCache = new MutationCache({
   onSuccess: (_data, variables) => {
-    const vehicleId = (variables as { id: number }).id
+    const vehicleId = (variables as { id: string }).id
     logger.info('action_update_success', { vehicleId })
   },
   onError: (error, variables) => {
-    const vehicleId = (variables as { id: number }).id
+    const vehicleId = (variables as { id: string }).id
     logger.error('action_update_failure', { vehicleId, error })
   },
 })

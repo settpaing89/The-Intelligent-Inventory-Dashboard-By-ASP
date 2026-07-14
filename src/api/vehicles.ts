@@ -11,15 +11,11 @@ export async function getVehicles(): Promise<Vehicle[]> {
       `Failed to fetch vehicles: ${response.status} ${response.statusText}`,
     )
   }
-  const data: Vehicle[] = await response.json()
-  // json-server serves `id` as a string even when db.json stores it as a
-  // number, silently violating the Vehicle type's `id: number` contract.
-  // Coerce here so every other caller can trust the type as declared.
-  return data.map((vehicle) => ({ ...vehicle, id: Number(vehicle.id) }))
+  return response.json()
 }
 
 export async function updateVehicleAction(
-  id: number,
+  id: string,
   payload: { actionStatus: ActionStatus; actionNote?: string | null },
 ): Promise<Vehicle> {
   const response = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
@@ -38,11 +34,17 @@ export async function updateVehicleAction(
       `Failed to update vehicle ${id}: ${response.status} ${response.statusText}`,
     )
   }
-  const updated: Vehicle = await response.json()
-  return { ...updated, id: Number(updated.id) }
+  return response.json()
 }
 
 export async function createVehicle(input: NewVehicleInput): Promise<Vehicle> {
+  // json-server's create() unconditionally overwrites `id` with its own
+  // randomId() regardless of what's sent in the POST body (confirmed by
+  // reading node_modules/json-server/lib/service.js directly) -- there is
+  // no way to make it respect a client-supplied id. The resulting id is a
+  // random string (e.g. "0eSnkshRMpo"), not numeric-parseable, which is
+  // exactly why Vehicle.id is a plain string throughout this app rather
+  // than something coerced with Number(...).
   const response = await fetch(`${API_BASE_URL}/vehicles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,6 +60,16 @@ export async function createVehicle(input: NewVehicleInput): Promise<Vehicle> {
       `Failed to create vehicle: ${response.status} ${response.statusText}`,
     )
   }
-  const created: Vehicle = await response.json()
-  return { ...created, id: Number(created.id) }
+  return response.json()
+}
+
+export async function deleteVehicle(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(
+      `Failed to delete vehicle ${id}: ${response.status} ${response.statusText}`,
+    )
+  }
 }

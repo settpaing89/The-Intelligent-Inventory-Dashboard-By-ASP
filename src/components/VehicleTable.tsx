@@ -6,6 +6,7 @@ import { SEVERITY_STYLES } from '../lib/severityStyles'
 interface VehicleTableProps {
   vehicles: Vehicle[]
   onLogAction: (vehicle: Vehicle) => void
+  onRemoveVehicle: (vehicle: Vehicle) => void
 }
 
 function formatIntakeDate(intakeDate: string): string {
@@ -17,10 +18,14 @@ function formatIntakeDate(intakeDate: string): string {
   })
 }
 
-function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+function VehicleTable({
+  vehicles,
+  onLogAction,
+  onRemoveVehicle,
+}: VehicleTableProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
-  function toggleExpanded(id: number) {
+  function toggleExpanded(id: string) {
     setExpandedIds((previous) => {
       const next = new Set(previous)
       if (next.has(id)) {
@@ -163,11 +168,9 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
                         <button
                           type="button"
                           onClick={() => onLogAction(vehicle)}
-                          className="rounded bg-primary-container px-2 py-1 text-xs font-semibold text-white hover:bg-primary"
+                          className="w-20 rounded bg-primary-container px-2 py-1 text-center text-xs font-semibold text-white hover:bg-primary"
                         >
-                          {vehicle.actionStatus
-                            ? 'Update Action'
-                            : 'Log Action'}
+                          {vehicle.actionStatus ? 'Update' : 'Log'}
                         </button>
                       </div>
                     )}
@@ -187,6 +190,15 @@ function VehicleTable({ vehicles, onLogAction }: VehicleTableProps) {
                       <div>Mileage: {vehicle.mileage}</div>
                       <div>
                         Intake Date: {formatIntakeDate(vehicle.intakeDate)}
+                      </div>
+                      <div className="mt-3 border-t border-card-border pt-3">
+                        <button
+                          type="button"
+                          onClick={() => onRemoveVehicle(vehicle)}
+                          className="rounded bg-error px-3 py-1.5 text-xs font-semibold text-on-error hover:opacity-90"
+                        >
+                          Remove Vehicle
+                        </button>
                       </div>
                     </td>
                   </tr>

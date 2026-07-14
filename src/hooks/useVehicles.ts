@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createVehicle,
+  deleteVehicle,
   getVehicles,
   updateVehicleAction,
 } from '../api/vehicles'
@@ -21,7 +22,7 @@ export function useUpdateVehicleAction() {
       id,
       ...payload
     }: {
-      id: number
+      id: string
       actionStatus: ActionStatus
       actionNote?: string | null
     }) => updateVehicleAction(id, payload),
@@ -36,6 +37,17 @@ export function useCreateVehicle() {
 
   return useMutation({
     mutationFn: createVehicle,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+    },
+  })
+}
+
+export function useDeleteVehicle() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteVehicle,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
     },
