@@ -1,18 +1,52 @@
-# Dealership Inventory Dashboard
+# Intelligent Inventory Dashboard
 
-A React + TypeScript + Vite frontend for managing dealership vehicle inventory, backed by a json-server mock API during development.
+## Overview
+
+The Intelligent Inventory Dashboard gives dealership managers visibility into aging vehicle stock and a concrete way to act on it, rather than leaving that judgment to memory or a spreadsheet. It was built for the Keyloop technical assessment, Scenario B (Domain: Supply). Per the assessment's "choose one layer" instruction, the frontend is fully implemented and the backend is mocked — but the mock is a real, working REST API (json-server) with file-based persistence, not a static fixture or an in-memory stub. That distinction matters because a manager's logged action genuinely persists to disk and survives a page reload, rather than only appearing to save. Three core requirements shape everything that follows: inventory visualization and filtering, aging-stock identification, and actionable insights and logging.
+
+## Features
+
+### Inventory visualization and filtering
+
+- A paginated vehicle table (make/model, year/trim, days in inventory, price, status, and action columns), with an expandable row for VIN, color, mileage, and intake date.
+- Filtering by make, model, year, VIN substring, and a min/max days-in-inventory range.
+- Summary stats for total vehicle count, aging-stock count, average days in inventory, and total inventory value.
+
+### Aging-stock identification
+
+- A two-tier severity model: **aging** (more than 90 days in inventory) and **critical** (more than 150 days), each with its own badge.
+- An aging-stock summary banner above the fold, with a one-click filter into just the aging and critical vehicles.
+- Charts covering the aging-severity breakdown, severity by make, and the days-in-inventory distribution.
+
+### Actionable insights and logging
+
+- Logging or updating a status and optional note against any aging or critical vehicle, persisted through the mock API.
+- A rule-based recommended-action suggestion, pre-filled for a vehicle that has never been reviewed and clearly captioned as a suggestion rather than a manager's own prior decision.
+
+### Beyond the core requirements
+
+The following were added on top of the three core requirements above, not required by the assessment. Each is a deliberate addition, not scope drift — see `SYSTEM_DESIGN.md` for the full reasoning behind each one.
+
+- **Pagination** — the vehicle list can grow past what's comfortable to render and scroll through on one page.
+- **The recommended-action heuristic** — reduces a manager's decision load on a never-reviewed vehicle without pretending to be their own past judgment.
+- **Add Vehicle and Remove Vehicle** — a dashboard that can only display inventory but never adjust it has limited practical use for day-to-day work.
+- **A custom visual design system** — `DESIGN.md`'s token spec is applied consistently across every component, rather than leaving the interface in default component styling.
 
 ## Prerequisites
 
 - Node 20 (see `.nvmrc`)
 
-## Install
+## Installation
 
 ```bash
 npm install
 ```
 
-## Run
+## Environment setup
+
+`.env.example` documents the one variable the app reads, `VITE_API_BASE_URL`. The app already defaults to `http://localhost:3001` in code if the variable is unset, matching the mock API's own default port, so no `.env` file is required to run the project out of the box. Copy `.env.example` to `.env` only if you need to point the frontend at a different backend URL.
+
+## Running the application
 
 ```bash
 npm run dev:all
@@ -25,12 +59,49 @@ This runs the Vite dev server and the mock API together:
 
 You can also run them separately with `npm run dev` (frontend only) and `npm run mock-api` (mock API only).
 
-## Other scripts
+## Testing
 
-- `npm run build` — type-check and build for production
-- `npm run test` — run the Vitest test suite
-- `npm run lint` — run ESLint
-- `npm run format` — format the codebase with Prettier
+The business logic layer (`src/lib/inventoryLogic.ts`) is deliberately written as pure functions with no React or network dependencies — no component rendering, no API calls, just plain data in and plain data out. That isolation is why it's testable the way it is: a test can assert on an exact input/output pair directly, without mocking a UI or a server to get there.
+
+### Testing approach
+
+- **Boundary-value testing at the exact thresholds the app's logic depends on** — 90 versus 91 days (the aging boundary) and 150 versus 151 days (the critical boundary). Testing directly at a boundary is what actually exercises a `>` versus `>=` decision in the implementation; a test comfortably on either side of it would still pass even if that comparison operator were wrong.
+- **Deterministic dates via an injectable `asOfDate`** — every date-dependent function takes an optional `asOfDate` parameter (defaulting to `new Date()` in production, but always passed explicitly as a fixed reference date in tests) so a test's result doesn't depend on what day it happens to run.
+- **Defensive and edge-case coverage** — empty arrays, zero and negative values, future dates, and malformed input are tested throughout, deliberately rather than incidentally, since these are exactly the inputs a real browser can produce (an empty inventory, a vehicle with a future intake date, a manager submitting a mistyped VIN).
+- **Non-mutation checks** — several functions that operate on a vehicle array (`filterVehicles`, `getAgingVehicles`, `paginateVehicles`, `getSeverityBreakdownByMake`) have a dedicated test confirming the input array and its elements are left untouched.
+
+### Coverage
+
+- Days-in-inventory and severity threshold logic (`getDaysInInventory`, `isAgingStock`, `getAgingSeverity`).
+- Make/model/year/VIN/day-range filtering (`filterVehicles`), including the convention that an empty string or `undefined` filter value means "no active filter," not "match nothing."
+- Pagination bounds and clamping (`paginateVehicles`): exact-multiple and remainder page splits, and clamping an out-of-range page number — too high, or below 1 — back into range.
+- Aggregate stats (`getAverageDaysInInventory`, `getTotalInventoryValue`, `getAgingVehicles`) and the chart-supporting aggregations behind `InventoryInsights` (`getSeverityBreakdownByMake`, `getDaysInInventoryDistribution`), including sort order and that a make with zero aging or critical vehicles still appears rather than being silently dropped.
+- The recommended-action heuristic (`getRecommendedAction`).
+- New-vehicle validation (`validateNewVehicle`): required fields, numeric and date bounds, VIN format (length, character set, the I/O/Q exclusion) and case-insensitive uniqueness against existing inventory, and that every applicable validation error is reported at once rather than stopping at the first one found.
+
+```bash
+npm run test
+```
+
+This currently runs 85 tests across 2 files: 84 in `src/lib/inventoryLogic.test.ts` covering the business logic above, plus 1 smoke test in `src/App.test.tsx` (renders the app and confirms the page heading appears) left over from the initial scaffold.
+
+```bash
+npm run lint
+```
+
+Runs ESLint across the project.
+
+### What this suite does not cover
+
+Component rendering and end-to-end user flows are not covered by this automated suite, beyond the single scaffold-era smoke test above. That was a deliberate scope decision, not a gap: UI behavior was verified manually at each build stage against an explicit checklist before moving to the next one, as described in the AI Collaboration Narrative below, rather than adding browser-automation tooling that would have been disproportionate to a project of this size.
+
+## Project structure
+
+- `src/lib` — framework-independent business logic (aging/severity calculations, filtering, pagination, new-vehicle validation), fully unit-tested and with no React or DOM dependencies.
+- `src/components` — the React UI, one component per major dashboard section or interaction (table, filters, drawers, charts, dialogs).
+- `src/api` — fetch wrappers around the mock REST API.
+- `src/hooks` — TanStack Query hooks (queries and mutations) built on top of the `src/api` layer.
+- `mock-server/` — the json-server mock backend and its file-persisted `db.json` seed data.
 
 ## AI Collaboration Narrative
 
