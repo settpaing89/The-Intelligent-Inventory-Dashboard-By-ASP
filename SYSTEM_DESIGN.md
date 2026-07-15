@@ -145,7 +145,35 @@ Design decisions for this project were made in conversation with Claude, used sp
 
 Once a decision was locked in, it became a small, specific instruction for Claude Code (the tool that wrote the actual implementation), one focused step at a time, so each piece could be checked before the next one began. This document was written the same way: built up alongside the project, not reconstructed afterward.
 
-A full account of directing and verifying the AI's output *during implementation* — including how two real bugs were tracked down — is in the project README's AI Collaboration Narrative section, rather than repeated here.
+### Workflow structure
+
+Four separate conversations were kept open throughout the project, each scoped to a single role rather than one general-purpose chat handling everything:
+
+| Role | Responsibility |
+|---|---|
+| **Brainstorming** | Open-ended exploration of options before a decision was needed. |
+| **Prompt drafting / spec partner** | Turning a locked-in decision into a single, precisely scoped prompt for the builder — explicitly instructed not to write code itself, and to push back if a request was too broad or underspecified. |
+| **Debugging** | Diagnosing issues by reading actual source files directly, rather than guessing and re-prompting the builder blind. |
+| **Claude Code (builder)** | Implementation only — never made an architectural or design decision on its own; every decision it executed had already been made in one of the other three chats. |
+
+Separating these roles kept each conversation's context focused on one kind of work, and kept the builder from ever being in a position to make a scope decision by default.
+
+### Staged, scoped prompting
+
+The build started from a thirteen-stage plan (scaffold → mock data/API → business logic and tests → one UI section at a time → observability → polish → documentation), locked in during the very first setup prompt — but that was the starting plan, not the final scope. Once the three core requirements were solid, one-scoped-prompt-at-a-time approach continued for capabilities added deliberately beyond the original plan: pagination, the insights charts, the recommended-action heuristic, and the Add/Remove Vehicle flow. Every prompt, original plan or later addition, specified exact data shapes up front so they couldn't drift between stages.
+
+### Guardrails against scope drift
+
+This staged structure was tested directly, not just assumed to work, on two separate occasions where the natural next step would have been to go outside the assessment's actual scope:
+
+- **A hard-to-diagnose bug prompted an impulse to discard working code.** After extended, unsuccessful debugging, the instinct was to rewrite broad areas of the codebase that might be related. The planning-partner chat identified this as the same "too broad, underspecified" pattern it was explicitly instructed to catch, and redirected toward reading the actual source files directly instead — which located the real cause (a build-tool file-watcher conflict, detailed in the README) within minutes, with no rewrite needed.
+- **UI polish began to exceed what the evaluation criteria actually covered.** After several rounds of visual refinement on a single component, the planning-partner chat flagged that continuing would trade further, ungraded polish for time that could go toward the deliverables actually being scored, and recommended moving forward instead.
+
+In both cases, the guardrail worked because the scope and evaluation criteria had been stated explicitly up front, giving the AI something concrete to check new requests against — rather than relying on it to infer scope on its own.
+
+### Visual design tooling
+
+Alongside Claude, **Google Stitch** (Google's AI-assisted UI design tool) was used during the design phase to explore layout and visual-direction options before any component was implemented. Its output informed the custom design-token system (`DESIGN.md`) that Claude Code later implemented consistently across every component, rather than each screen being styled ad hoc.
 
 ---
 
