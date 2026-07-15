@@ -36,6 +36,14 @@ Run separately if needed: `npm run dev` (frontend only) or `npm run mock-api` (A
 
 No setup is required to run this out of the box — the app defaults to the correct API address automatically. Only edit `.env` (see `.env.example`) if pointing at a different backend URL.
 
+`mock-server/db.json` is the mock API's data file, and it's committed to the repo as the seed dataset — it's also where the mock API writes every change you make while testing (logging an action, adding or removing a vehicle), so it won't stay in its original state once you start clicking around. To reset it back to the committed seed data at any point:
+
+```bash
+git checkout -- mock-server/db.json
+```
+
+Restart `npm run dev:all` afterward if it was already running, since the mock API doesn't always reliably notice the file changing underneath it.
+
 ## Testing
 
 The business logic (aging/severity rules, filtering, pagination, validation) is written as plain, framework-independent functions with no UI or network dependencies. That separation is what makes it possible to test the logic directly and precisely, without going through the app itself.
